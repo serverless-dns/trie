@@ -57,7 +57,7 @@ export function sys(extra = false) {
 
   // Deno doesn't yet impl process.memoryUsage and
   // process.resourceUsage: std@0.159.0/node/process.ts
-  if (Deno) return;
+  if (typeof Deno !== "undefined") return;
 
   // memory info
   const meminfo = process.memoryUsage(); // is slow
