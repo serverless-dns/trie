@@ -108,7 +108,10 @@ function FrozenTrieNode(trie, index) {
     const isThisNodeCompressed = this.compressed() && !this.flag();
 
     if (isThisNodeCompressed || isPrevNodeCompressed) {
-      const cc = this.trie.nodecache.find(this.index, cachecursor);
+      let cc = null;
+      if (this.trie.nodecache != null) {
+        cc = this.trie.nodecache.find(this.index, cachecursor);
+      }
       if (cc != null && cc.value != null) {
         wordCached = cc.value;
         cursorCached = cc.cursor;
@@ -163,7 +166,9 @@ function FrozenTrieNode(trie, index) {
         branch: nodes[nodes.length - 1],
       };
       // cache compressed-nodes against their trie indices (spawn)
-      this.trie.nodecache.put(lo, hi, wordCached);
+      if (this.trie.nodecache != null) {
+        this.trie.nodecache.put(lo, hi, wordCached);
+      }
     } else {
       wordCached = {
         word: [this.letter()],
