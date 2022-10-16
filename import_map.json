@@ -1,0 +1,7 @@
+{
+    "imports": {
+        "os" : "https://deno.land/std@0.36.0/node/os.ts",
+        "buffer": "https://deno.land/std@0.110.0/node/buffer.ts",
+        "process": "https://deno.land/std@0.159.0/node/process.ts"
+    }
+}
