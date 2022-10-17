@@ -22,6 +22,7 @@ import {
   config,
 } from "./config.js";
 import { RankDirectory } from "./rank.js";
+import { BitString } from "./bufreader.js";
 
 /**
  * This class is used for traversing the succinctly encoded trie.
