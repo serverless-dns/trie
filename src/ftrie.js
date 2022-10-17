@@ -228,8 +228,9 @@ function FrozenTrieNode(trie, index) {
       // value-nodes are all children from 0...node.flag() is false
       while (i < childcount) {
         const valueChain = this.getChild(i);
+        const letter = valueChain.letter();
         if (config.debug) {
-          console.log("vc no-flag end i/l", i, valueChain.letter());
+          console.log("vc no-flag end i/l", i, letter);
           console.log("f/idx/v", valueChain.flag(), valueChain.index, value);
         }
         if (!valueChain.flag()) {
@@ -238,14 +239,14 @@ function FrozenTrieNode(trie, index) {
 
         if (config.useCodec6) {
           // retrieve letter (6 bits) as-is
-          value.push(valueChain.letter());
+          optvalue.push(letter);
           j += 1;
         } else {
           // retrieve letter and big-endian it in a bit-string (16 bits)
           if (i % 2 === 0) {
-            value.push(valueChain.letter() << 8);
+            value.push(letter << 8);
           } else {
-            value[j] = value[j] | valueChain.letter();
+            value[j] = value[j] | letter;
             j += 1;
           }
         }
@@ -254,17 +255,18 @@ function FrozenTrieNode(trie, index) {
       // maximum number of flags stored as-is is 3.
       // for codec b6 (6 bits), max is len 4 (8*3/6 bits each)
       // for codec b8 (8 bits), max is len 3 (8*3/8 bits each)
-      if (config.optflags && optvalue.length <= 4) {
+      if (
+        config.optflags &&
+        ((config.useCodec6 && optvalue.length <= 4) || optvalue.length <= 3)
+      ) {
         // note: decode8 is a no-op for codec typ b8
         const u8 = config.useCodec6 ? TxtDec.decode8(optvalue) : optvalue;
-        const fl = new Array(u8.length);
-        u8.forEach((u, i) => (fl[i] = u));
-        const tt = tagsToFlags(fl);
+        const tt = tagsToFlags(u8);
         valCached = codec.str2buf(tt);
-        if (config.debug) log.d("buf", valCached, "tag", tt, "flag", fl);
-        if (config.debug) log.d("enc u8", u8, "dec u6", optvalue);
+        if (config.debug) log.d("buf", valCached, "tag", tt);
+        if (config.debug) log.d("flag dec u8", u8, "enc u6", optvalue);
       } else {
-        valCached = config.useCodec6 ? TxtDec.decode16raw(value) : value;
+        valCached = config.useCodec6 ? TxtDec.decode16raw(optvalue) : value;
       }
     }
 
