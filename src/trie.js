@@ -8,6 +8,8 @@
 
 import * as log from "./log.js";
 import * as codec from "./codec.js";
+import { RankDirectory, createRankDirectory } from "./rank.js";
+import { FrozenTrie } from "./ftrie.js";
 import { BitString, MaskBottom } from "./bufreader.js";
 import { BitWriter } from "./bufwriter.js";
 import { countSetBits } from "./bitsutil.js";
@@ -834,7 +836,7 @@ export async function build(
   const nodeCount = t.getNodeCount();
 
   log.i("building rank; nodecount/L1/L2", nodeCount, L1, L2);
-  const rd = RankDirectory.Create(td, nodeCount, L1, L2);
+  const rd = createRankDirectory(td, nodeCount, L1, L2);
 
   const ft = new FrozenTrie(td, rd, nodeCount);
   const end = Date.now();
