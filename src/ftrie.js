@@ -322,12 +322,12 @@ FrozenTrieNode.prototype = {
  * The global L1 and L2 constants are used to determine the L1Size and L2size.
  * @param {*} nodeCount The number of nodes in the trie.
  */
-function FrozenTrie(data, rdir, nodeCount) {
+export function FrozenTrie(data, rdir, nodeCount) {
   this.init(data, rdir, nodeCount);
 }
 
 FrozenTrie.prototype = {
-  init: function (trieData, rdir, nodeCount, cache) {
+  init: function (trieData, rdir, nodeCount, cache = null) {
     this.data = new BitString(trieData);
     // pass the rank directory instead of data
     this.directory = rdir;
