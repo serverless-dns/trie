@@ -201,7 +201,7 @@ function FrozenTrieNode(trie, index) {
 
   this.firstChild = () => {
     if (!fcCached) {
-      fcCached = this.trie.directory.select(0, rhis.index + 1) - this.index;
+      fcCached = this.trie.directory.select(0, this.index + 1) - this.index;
     }
     return fcCached;
   };
