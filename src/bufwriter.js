@@ -7,6 +7,7 @@
  */
 
 import { W, bufferView } from "./config.js";
+import { MaskTop } from "./bufreader.js";
 
 /**
  * The BitWriter will create a stream of bytes, letting you write a certain
