@@ -8,6 +8,7 @@
 
 import { config } from "./config.js";
 import { BitString } from "./bufreader.js";
+import { BitWriter } from "./bufwriter.js";
 
 /**
  * The rank directory allows you to build an index to quickly compute the
@@ -16,6 +17,62 @@ import { BitString } from "./bufreader.js";
  */
 export function RankDirectory(directoryData, bitData, numBits, l1Size, l2Size) {
   this.init(directoryData, bitData, numBits, l1Size, l2Size);
+}
+
+/**
+ * Builds a rank directory from the given input string.
+ *
+ * @param data string containing the data, readable using the BitString obj.
+ *
+ * @param numBits number(letters) in the trie.
+ *
+ * @param l1Size number(bits) that each entry in the Level1 table
+ * summarizes. This should be a multiple of l2Size.
+ *
+ * @param l2Size number(bits) that each entry in the Level2 table summarizes.
+ */
+export function createRankDirectory(data, nodeCount, l1Size, l2Size) {
+  const bits = new BitString(data);
+  let p = 0;
+  let i = 0;
+  let count1 = 0;
+  let count2 = 0;
+
+  const numBits = nodeCount * 2 + 1;
+
+  const l1bits = Math.ceil(Math.log2(numBits));
+  const l2bits = Math.ceil(Math.log2(l1Size));
+
+  const directory = new BitWriter();
+
+  if (config.selectsearch === false) {
+    while (p + l2Size <= numBits) {
+      count2 += bits.count(p, l2Size);
+      i += l2Size;
+      p += l2Size;
+      if (i === l1Size) {
+        count1 += count2;
+        directory.write(count1, l1bits);
+        count2 = 0;
+        i = 0;
+      } else {
+        directory.write(count2, l2bits);
+      }
+    }
+  } else {
+    let i = 0;
+    while (i + l2Size <= numBits) {
+      // find index of l2Size-th 0 from index i
+      const sel = bits.pos0(i, l2Size);
+      // do we need to write l1bits for sel? yes.
+      // sel is the exact index of l2size-th 0 in the rankdirectory.
+      // todo: impl a l1/l2 cache to lessen nof bits.
+      directory.write(sel, l1bits);
+      i = sel + 1;
+    }
+  }
+
+  return new RankDirectory(directory.getData(), data, numBits, l1Size, l2Size);
 }
 
 RankDirectory.prototype = {
