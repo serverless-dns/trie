@@ -325,8 +325,8 @@ FrozenTrieNode.prototype = {
  * The global L1 and L2 constants are used to determine the L1Size and L2size.
  * @param {*} nodeCount The number of nodes in the trie.
  */
-export function FrozenTrie(data, rdir, nodeCount) {
-  this.init(data, rdir, nodeCount);
+export function FrozenTrie(data, rdir, nodeCount, cache = null) {
+  this.init(data, rdir, nodeCount, cache);
 }
 
 FrozenTrie.prototype = {
@@ -473,7 +473,7 @@ FrozenTrie.prototype = {
   },
 };
 
-export function createTrie(tdbuf, rdbuf, config) {
+export function createTrie(tdbuf, rdbuf, config, triecache = null) {
   // tdbuf, rdbuf must be untyped arraybuffers on all platforms
   // bufutil.concat, as one example, creates untyped arraybuffer,
   // as does nodejs' Buffer module. If what's passed is a typedarray,
@@ -485,8 +485,8 @@ export function createTrie(tdbuf, rdbuf, config) {
   const tdv = new bufferView[W](tdbuf);
   const rdv = new bufferView[W](rdbuf);
   const nc = config.nodecount;
-  const numbits = config.nodecount * 2 + 1;
+  const numbits = nc * 2 + 1;
   const rd = new RankDirectory(rdv, tdv, numbits, L1, L2);
 
-  return new FrozenTrie(tdv, rd, nc);
+  return new FrozenTrie(tdv, rd, nc, triecache);
 }
