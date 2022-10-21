@@ -6,8 +6,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import * as os from "node:os";
-import * as process from "node:process";
+import * as os from "os";
+import * as process from "process";
 
 // a simple logger that prints time on every output
 const E = "E/";
