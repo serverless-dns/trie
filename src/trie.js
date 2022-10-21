@@ -36,9 +36,9 @@ function TrieNode(letter) {
 }
 
 TrieNode.prototype = {
-  scale: function () {
+  scale: function (trie) {
     // capture size and len before scaling down this node
-    this.size = childrenSize(this);
+    this.size = trie.childrenSize(this);
     this.len = this.children.length;
     this.letter = this.letter[this.letter.length - 1];
     this.children.length = 0;
@@ -573,7 +573,7 @@ Trie.prototype = {
         level.push(current);
       }
       // scale down things trie.encode doesn't need
-      node.scale();
+      node.scale(this);
     }
     if (loginspect) log.d("inspect level-order", inspect);
     if (loginspect) log.d("inspect flags dist", flstat);
