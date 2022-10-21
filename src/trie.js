@@ -8,14 +8,16 @@
 
 import * as log from "./log.js";
 import * as codec from "./codec.js";
-import { RankDirectory, createRankDirectory } from "./rank.js";
+import * as fs from "fs";
+import { createHash } from "crypto";
+import { createRankDirectory } from "./rank.js";
 import { FrozenTrie } from "./ftrie.js";
 import { BitString, MaskBottom } from "./bufreader.js";
 import { BitWriter } from "./bufwriter.js";
 import { countSetBits } from "./bitsutil.js";
 import { dec16, chr16 } from "./b64.js";
 import { flagsToTags } from "./stamp.js";
-import { L1, L2, TxtEnc, TxtDec, ENC_DELIM, config } from "./config.js";
+import { L1, L2, config } from "./config.js";
 
 // impl based on S Hanov's succinct-trie: stevehanov.ca/blog/?id=120
 
@@ -63,13 +65,19 @@ function Trie() {
 }
 
 Trie.prototype = {
-  init: function () {
+  init: function (cfg) {
     this.previousWord = "";
     this.root = new TrieNode([-1]); // any letter would do nicely
     this.cache = [this.root];
     this.nodeCount = 1;
     this.stats = {};
     this.inspect = {};
+
+    const codecType = cfg.useCodec6 ? codec.b6 : codec.b8;
+    this.config = cfg;
+    this.proto = new codec.Codec(codecType);
+    // utf8 encoded delim for non-base32/64
+    this.encodedDelim = this.proto.delimEncoded();
   },
 
   /**
@@ -77,6 +85,39 @@ Trie.prototype = {
    */
   getNodeCount: function () {
     return this.nodeCount;
+  },
+
+  // returns the "size" of the trie node in number of bytes.
+  childrenSize(tn) {
+    let size = 0;
+
+    if (!tn.children) return size;
+
+    for (const c of tn.children) {
+      // each letter in c.letter is 1 byte long
+      let len = c.letter.length;
+      if (c.flag) {
+        // nodecount depends on how flag node is encoded:
+        // calc length(flag-nodes) bit-string (16bits / char)
+        // ie, a single letter of a flag node is either 2 bytes
+        // long (longer length flags) or 1 byte (shorter length)
+        // and these bytes are either represented as in groups
+        // of 8bits or 6bits (depending on proto.typ) in a uint8
+        if (this.config.optflags && c.optletter != null) {
+          const optlen = c.optletter.length;
+          len = Math.ceil((optlen * 8) / this.proto.typ);
+        } else {
+          len = Math.ceil((len * 16) / this.proto.typ);
+        }
+      }
+      size += len;
+    }
+    return size;
+  },
+
+  // must be kept in-sync with transform in ftrie.js
+  transform(str) {
+    return this.proto.encode(str).reverse();
   },
 
   getFlagNodeIfExists(children) {
@@ -175,21 +216,26 @@ Trie.prototype = {
       node.flag = false;
       // bitslen / encoding type affects nodecount; depending
       // which a flag node is 8bits or 6bits long. see level order
-      if (config.optflags && first.optletter != null) {
-        this.nodeCount -= Math.ceil((first.optletter.length * 8) / TxtEnc.typ);
+      if (this.config.optflags && first.optletter != null) {
+        this.nodeCount -= Math.ceil(
+          (first.optletter.length * 8) / this.proto.typ
+        );
       } else {
-        this.nodeCount -= Math.ceil((first.letter.length * 16) / TxtEnc.typ);
+        this.nodeCount -= Math.ceil(
+          (first.letter.length * 16) / this.proto.typ
+        );
       }
       return;
     }
 
-    const flag = TxtDec.decode(encodedFlag);
+    const flag = this.proto.decode(encodedFlag);
     const val = flag;
     if (val == null) {
       log.w(flag, encodedFlag, "<- flags, val undef for node", node);
       throw new Error("val undefined err");
     }
 
+    // TODO: move this bit to stamp.js?
     const flagNode = isNodeFlag ? first : new TrieNode(chr16(0));
     // if flag-node doesn't exist, add it at index 0
     if (!isNodeFlag) {
@@ -197,7 +243,7 @@ Trie.prototype = {
       const all = node.children;
       node.children = [flagNode]; // index 0
       node.children.concat(all);
-      if (config.optflags) flagNode.optletter = [val];
+      if (this.config.optflags) flagNode.optletter = [val];
       newlyAdded = true;
     }
 
@@ -206,12 +252,12 @@ Trie.prototype = {
     let fopt = fnode.optletter;
 
     const resnodesize = !newlyAdded
-      ? Math.ceil((res.length * 16) / TxtEnc.typ)
+      ? Math.ceil((res.length * 16) / this.proto.typ)
       : 0;
     const optnodesize =
-      !newlyAdded && fopt ? Math.ceil((fopt.length * 8) / TxtEnc.typ) : 0;
+      !newlyAdded && fopt ? Math.ceil((fopt.length * 8) / this.proto.typ) : 0;
 
-    if (!newlyAdded && config.optflags && fopt != null) {
+    if (!newlyAdded && this.config.optflags && fopt != null) {
       // maintain upto 3 flags as-is, if more, then wipe 'em out
       if (fopt.length < 3) {
         flagNode.optletter.push(val);
@@ -231,7 +277,7 @@ Trie.prototype = {
     const dataIndex = countSetBits(h & MaskBottom[16][16 - index]) + 1;
 
     if (
-      config.debug &&
+      this.config.debug &&
       (typeof res === "undefined" || typeof res[dataIndex] === "undefined")
     ) {
       log.d(
@@ -284,11 +330,13 @@ Trie.prototype = {
       res.slice(upsertData ? dataIndex + 1 : dataIndex);
 
     // this size is dependent on how the flag node is eventually
-    // serialized by TxtEnc, and so calculate its size accordingly
-    const newresnodesize = Math.ceil((res.length * 16) / TxtEnc.typ);
-    const newoptnodesize = fopt ? Math.ceil((fopt.length * 8) / TxtEnc.typ) : 0;
+    // serialized by proto, and so calculate its size accordingly
+    const newresnodesize = Math.ceil((res.length * 16) / this.proto.typ);
+    const newoptnodesize = fopt
+      ? Math.ceil((fopt.length * 8) / this.proto.typ)
+      : 0;
 
-    if (config.optflags && fopt != null) {
+    if (this.config.optflags && fopt != null) {
       this.nodeCount += newoptnodesize - optnodesize;
     } else {
       if (optnodesize > 0) {
@@ -300,27 +348,27 @@ Trie.prototype = {
 
     fnode.letter = res;
 
-    if (config.debug) log.d(flag, val, index, pos);
+    if (this.config.debug) log.d(flag, val, index, pos);
   },
 
   /**
    * Inserts a word into the trie, call in alphabetical (lexographical) order.
    */
   insert: function (word) {
-    const index = word.lastIndexOf(ENC_DELIM[0]);
+    const index = word.lastIndexOf(this.encodedDelim[0]);
     if (index <= 0) {
       err =
         "missing delim in word: " +
-        TxtEnc.decode(word) +
+        this.proto.decode(word) +
         ", delim: " +
-        ENC_DELIM[0] +
+        this.encodedDelim[0] +
         ", encoded: " +
         word;
       throw new Error(err);
     }
     const encodedFlag = word.slice(index + 1);
     // each letter in word must be 8bits or less.
-    // todo: TxtEnc word here?
+    // todo: proto word here?
     word = word.slice(0, index);
 
     let j = 1;
@@ -369,7 +417,7 @@ Trie.prototype = {
       node.children.push(tn);
       node.final = false;
       this.upsertFlag(node, undefined);
-      if (config.debug) {
+      if (this.config.debug) {
         log.d(
           "split the node newnode/currentnode/split-reason",
           n,
@@ -382,7 +430,7 @@ Trie.prototype = {
     if (w.length === 0) {
       node.final = true;
       this.upsertFlag(node, encodedFlag);
-      if (config.debug) {
+      if (this.config.debug) {
         log.d(
           "existing node final nl/split-word/letter-match/pfx/in-word",
           node.letter,
@@ -462,15 +510,15 @@ Trie.prototype = {
         // encode flagNode.letter which is a 16-bit js-str
         // encode splits letter into units of 6or8bits (uint)
         let encValue = null;
-        if (config.optflags && flagNode.optletter != null) {
+        if (this.config.optflags && flagNode.optletter != null) {
           if (loginspect) inspect["optletter"] = (inspect["optletter"] | 0) + 1;
-          encValue = TxtEnc.encode8(flagNode.optletter);
+          encValue = this.proto.encode8(flagNode.optletter);
         } else {
           const letter = flagNode.letter;
-          if (config.useCodec6) {
-            encValue = TxtEnc.encode16(letter);
+          if (this.config.useCodec6) {
+            encValue = this.proto.encode16(letter);
           } else {
-            encValue = new BitString(letter).encode(/* mostly 8 */ TxtEnc.typ);
+            encValue = new BitString(letter).encode(this.proto.typ);
           }
         }
 
@@ -487,11 +535,11 @@ Trie.prototype = {
           const k1 = "encf_" + flen;
           inspect[k1] = (inspect[k1] | 0) + 1;
           let flags = [];
-          if (config.optflags && flagNode.optletter != null) {
+          if (this.config.optflags && flagNode.optletter != null) {
             flagNode.optletter.forEach((i) => flags.push(i));
           } else {
-            const v = config.useCodec6
-              ? TxtDec.decode16raw(encValue)
+            const v = this.config.useCodec6
+              ? this.proto.decode16raw(encValue)
               : encValue;
             flags = flagsToTags(v);
           }
@@ -555,9 +603,9 @@ Trie.prototype = {
     // final-node     : 0x40 => 01 00 0000
     // compressed-node: 0x80 => 10 00 0000
     // flag/value-node: 0xc0 => 11 00 0000
-    const finalMask = config.useCodec6 ? 0x40 : 0x100;
-    const compressedMask = config.useCodec6 ? 0x80 : 0x200;
-    const flagMask = config.useCodec6 ? 0xc0 : 0x300;
+    const finalMask = this.config.useCodec6 ? 0x40 : 0x100;
+    const compressedMask = this.config.useCodec6 ? 0x80 : 0x200;
+    const flagMask = this.config.useCodec6 ? 0xc0 : 0x300;
 
     const all1 = 0xffff_ffff; // 1s all 32 bits
     const maxbits = countSetBits(all1); // 32 bits
@@ -582,7 +630,7 @@ Trie.prototype = {
     this.root = null;
     this.cache = null;
 
-    if (config.debug && global.gc) {
+    if (this.config.debug && global.gc) {
       // in test runs, a call to gc here takes 15m+
       global.gc();
       log.i("encode: gc");
@@ -649,7 +697,7 @@ Trie.prototype = {
         this.stats.flags += 1;
       }
       chars.push(value);
-      if (config.inspect) {
+      if (this.config.inspect) {
         this.inspect[i + "_" + node.letter] = {
           v: value,
           l: node.letter,
@@ -658,7 +706,7 @@ Trie.prototype = {
         };
       }
     }
-    if (config.inspect) {
+    if (this.config.inspect) {
       let i = 0;
       for (const [k, v] of Object.entries(this.inspect)) {
         console.log(k, v);
@@ -674,7 +722,7 @@ Trie.prototype = {
     start = Date.now();
     // 2 extra bits to denote regular, compressed, final, flag node types
     const extraBit = 2;
-    const bitslen = extraBit + TxtEnc.typ;
+    const bitslen = extraBit + this.proto.typ;
     log.i(
       "charslen: " + chars.length + ", bitslen: " + bitslen,
       " letterstart",
@@ -712,59 +760,30 @@ Trie.prototype = {
       "\nchildren:",
       this.stats.single,
       "\ncodec memoized:",
-      TxtEnc.stats()
+      this.proto.stats()
     );
 
     return bits.getData();
   },
 };
 
-// fixme: move to trie's prototype
-// returns the "size" of the trie node in number of bytes.
-function childrenSize(tn) {
-  let size = 0;
-
-  if (!tn.children) return size;
-
-  for (const c of tn.children) {
-    // each letter in c.letter is 1 byte long
-    let len = c.letter.length;
-    if (c.flag) {
-      // nodecount depends on how flag node is encoded:
-      // calc length(flag-nodes) bit-string (16bits / char)
-      // ie, a single letter of a flag node is either 2 bytes
-      // long (longer length flags) or 1 byte (shorter length)
-      // and these bytes are either represented as in groups
-      // of 8bits or 6bits (depending on TxtEnc.typ) in a uint8
-      if (config.optflags && c.optletter != null) {
-        const optlen = c.optletter.length;
-        len = Math.ceil((optlen * 8) / TxtEnc.typ);
-      } else {
-        len = Math.ceil((len * 16) / TxtEnc.typ);
-      }
-    }
-    size += len;
-  }
-  return size;
-}
-
 function lex(a, b) {
   const n = Math.min(a.length, b.length);
-  const lendiff = a.length - b.length;
-  if (n === 0) return lendiff;
+  const lenDiff = a.length - b.length;
+  if (n === 0) return lenDiff;
   for (let i = 0; i < n; i++) {
     const d = a[i] - b[i];
     if (d === 0) continue;
     return d;
   }
-  return lendiff;
+  return lenDiff;
 }
 
 export async function build(
-  blocklist,
-  filesystem,
-  savelocation,
-  blocklistConfig
+  inFiles,
+  outDir,
+  blocklistConfig,
+  trieConfig = null
 ) {
   // in key:value pair, key cannot be anything that coerces to boolean false
   const tag = {};
@@ -777,28 +796,31 @@ export async function build(
     tag[key] = d.split("").reverse().join("");
   }
 
-  const t = new Trie();
+  const base = Object.assign({}, config);
+  trieConfig = Object.assign(base, trieConfig);
+
+  const t = new Trie(trieConfig);
 
   let hosts = [];
   try {
     let totalfiles = 0;
     let totallines = 0;
-    for (const filepath of blocklist) {
-      const patharr = filepath.split("/");
+    for (const bfile of inFiles) {
+      const patharr = bfile.split("/");
       // fname is same as blocklistConfig's  value
       const fname = patharr[patharr.length - 1].split(".")[0];
-      const f = filesystem.readFileSync(filepath, "utf8");
+      const f = fs.readFileSync(bfile, "utf8");
       if (f.length <= 0) {
-        log.i("empty file", filepath);
+        log.i("empty file", bfile);
         continue;
       }
       if (config.debug) {
-        log.d("adding: " + filepath, fname + " <-file | tag-> " + tag[fname]);
+        log.d("adding: " + bfile, fname + " <-file | tag-> " + tag[fname]);
       }
       let lines = 0;
       for (const h of f.split("\n")) {
         const ht = tag[fname] + h.trim();
-        const htr = transform(ht);
+        const htr = t.transform(ht);
         hosts.push(htr);
         lines += 1;
       }
@@ -838,18 +860,18 @@ export async function build(
   log.i("building rank; nodecount/L1/L2", nodeCount, L1, L2);
   const rd = createRankDirectory(td, nodeCount, L1, L2);
 
-  const ft = new FrozenTrie(td, rd, nodeCount);
+  const ft = new FrozenTrie(td, rd, nodeCount, trieConfig);
   const end = Date.now();
 
   log.i("time (ms) spent creating trie+rank: ", end - start);
 
   log.i("saving trie, rank, basicconfig, filetag");
 
-  if (!filesystem.existsSync(savelocation)) {
-    filesystem.mkdirSync(savelocation);
+  if (!fs.existsSync(outDir)) {
+    fs.mkdirSync(outDir);
   }
 
-  const aw1 = filesystem.writeFile(savelocation + "td.txt", td, function (err) {
+  const aw1 = fs.writeFile(outDir + "td.txt", td, function (err) {
     if (err) {
       log.e(err);
       throw err;
@@ -857,8 +879,8 @@ export async function build(
     log.i("trie saved as td.txt");
   });
 
-  const aw2 = filesystem.writeFile(
-    savelocation + "rd.txt",
+  const aw2 = fs.writeFile(
+    outDir + "rd.txt",
     rd.directory.bytes,
     function (err) {
       if (err) {
@@ -869,21 +891,8 @@ export async function build(
     }
   );
 
-  const basicconfig = { nodecount: nodeCount };
-  const aw3 = filesystem.writeFile(
-    savelocation + "basicconfig.json",
-    JSON.stringify(basicconfig),
-    function (err) {
-      if (err) {
-        log.e(err);
-        throw err;
-      }
-      log.i("basicconfig.json saved");
-    }
-  );
-
-  const aw4 = filesystem.writeFile(
-    savelocation + "filetag.json",
+  const aw3 = fs.writeFile(
+    outDir + "filetag.json",
     JSON.stringify(blocklistConfig),
     function (err) {
       if (err) {
@@ -894,7 +903,35 @@ export async function build(
     }
   );
 
+  const tddigest = md5(aw1);
+  const rddigest = md5(aw2);
+  const ftdigest = md5(aw3);
+
+  const basicconfig = {
+    version: 1,
+    nodecount: nodeCount,
+    tdmd5: tddigest,
+    rdmd5: rddigest,
+    ftmd5: ftdigest,
+    useCodec6: trieConfig.useCodec6,
+    optflags: trieConfig.optflags,
+  };
+
+  const aw4 = fs.writeFile(
+    outDir + "basicconfig.json",
+    JSON.stringify(basicconfig),
+    function (err) {
+      if (err) {
+        log.e(err);
+        throw err;
+      }
+      log.i("basicconfig.json saved");
+    }
+  );
+
   await Promise.all([aw1, aw2, aw3, aw4]);
+
+  log.i("digests[td/rd/ft]", tddigest, rddigest, ftdigest);
 
   log.sys();
   log.i("Lookup a few domains in this new trie");
@@ -914,7 +951,7 @@ export async function build(
     "celzero.com",
   ];
   for (const domainname of testdomains) {
-    const ts = transform(domainname);
+    const ts = t.transform(domainname);
     const sresult = ft.lookup(ts);
     log.i("looking up domain: " + domainname, "result: ");
     if (sresult) {
@@ -927,6 +964,7 @@ export async function build(
   }
 }
 
-export function transform(str) {
-  return TxtEnc.encode(str).reverse();
+// buf must be either TypedArray or node:Buffer
+function md5(buf) {
+  return createHash("md5").update(buf).digest("hex");
 }

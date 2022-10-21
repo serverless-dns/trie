@@ -10,17 +10,7 @@
 
 import * as codec from "./codec.js";
 import { tagsToFlags } from "./stamp.js";
-import {
-  W,
-  bufferView,
-  periodEncVal,
-  L1,
-  L2,
-  TxtEnc,
-  TxtDec,
-  ENC_DELIM,
-  config,
-} from "./config.js";
+import { W, bufferView, L1, L2, config } from "./config.js";
 import { RankDirectory } from "./rank.js";
 import { BitString } from "./bufreader.js";
 
@@ -40,6 +30,8 @@ function FrozenTrieNode(trie, index) {
 
   this.trie = trie;
   this.index = index;
+  this.debug = trie.config.debug;
+  this.config = trie.config;
 
   this.final = () => {
     if (typeof finCached === "undefined") {
@@ -116,11 +108,11 @@ function FrozenTrieNode(trie, index) {
       if (cc != null && cc.value != null) {
         wordCached = cc.value;
         cursorCached = cc.cursor;
-        if (config.debug) console.log("\t\t\tnode-c-hit", this.index);
+        if (this.debug) console.log("\t\t\tnode-c-hit", this.index);
         return [wordCached, cursorCached];
       }
 
-      if (config.debug) console.log("\t\t\tnode-c-miss, add:", this.index);
+      if (this.debug) console.log("\t\t\tnode-c-miss, add:", this.index);
 
       const startchild = [];
       const endchild = [];
@@ -222,14 +214,14 @@ function FrozenTrieNode(trie, index) {
       const optvalue = [];
       let i = 0;
       let j = 0;
-      if (config.debug) {
+      if (this.debug) {
         console.log("cur:i/l/c", this.index, this.letter(), childcount);
       }
       // value-nodes are all children from 0...node.flag() is false
       while (i < childcount) {
         const valueChain = this.getChild(i);
         const letter = valueChain.letter();
-        if (config.debug) {
+        if (this.debug) {
           console.log("vc no-flag end i/l", i, letter);
           console.log("f/idx/v", valueChain.flag(), valueChain.index, value);
         }
@@ -237,7 +229,7 @@ function FrozenTrieNode(trie, index) {
           break;
         }
 
-        if (config.useCodec6) {
+        if (this.config.useCodec6) {
           // retrieve letter (6 bits) as-is
           optvalue.push(letter);
           j += 1;
@@ -256,24 +248,29 @@ function FrozenTrieNode(trie, index) {
       // for codec b6 (6 bits), max is len 4 (8*3/6 bits each)
       // for codec b8 (8 bits), max is len 3 (8*3/8 bits each)
       if (
-        config.optflags &&
-        ((config.useCodec6 && optvalue.length <= 4) || optvalue.length <= 3)
+        this.config.optflags &&
+        ((this.config.useCodec6 && optvalue.length <= 4) ||
+          optvalue.length <= 3)
       ) {
         // note: decode8 is a no-op for codec typ b8
-        const u8 = config.useCodec6 ? TxtDec.decode8(optvalue) : optvalue;
+        const u8 = this.config.useCodec6
+          ? this.proto.decode8(optvalue)
+          : optvalue;
         const tt = tagsToFlags(u8);
         valCached = codec.str2buf(tt);
-        if (config.debug) log.d("buf", valCached, "tag", tt);
-        if (config.debug) log.d("flag dec u8", u8, "enc u6", optvalue);
+        if (debug) log.d("buf", valCached, "tag", tt);
+        if (debug) log.d("flag dec u8", u8, "enc u6", optvalue);
       } else {
-        valCached = config.useCodec6 ? TxtDec.decode16raw(optvalue) : value;
+        valCached = this.config.useCodec6
+          ? this.proto.decode16raw(optvalue)
+          : value;
       }
     }
 
     return valCached;
   };
 
-  if (config.debug) {
+  if (debug) {
     console.log(index, ":i, fc:", this.firstChild(), "tl:", this.letter());
     console.log("c:", this.compressed(), "f:", this.final());
     console.log("wh:", this.where(), "flag:", this.flag());
@@ -325,18 +322,24 @@ FrozenTrieNode.prototype = {
  * The global L1 and L2 constants are used to determine the L1Size and L2size.
  * @param {*} nodeCount The number of nodes in the trie.
  */
-export function FrozenTrie(data, rdir, nodeCount, cache = null) {
-  this.init(data, rdir, nodeCount, cache);
+export function FrozenTrie(data, rdir, nodeCount, ftconfig, cache = null) {
+  const base = Object.assign({}, config);
+  ftconfig = Object.assign(base, ftconfig);
+  this.init(data, rdir, nodeCount, ftconfig, cache);
 }
 
 FrozenTrie.prototype = {
-  init: function (trieData, rdir, nodeCount, cache = null) {
+  init: function (trieData, rdir, nodeCount, ftconfig, cache = null) {
+    const codecType = ftconfig.useCodec6 ? codec.b6 : codec.b8;
+    this.config = ftconfig;
+    this.proto = new codec.Codec(codecType);
+
     this.data = new BitString(trieData);
     // pass the rank directory instead of data
     this.directory = rdir;
 
     this.extraBit = 2;
-    this.bitslen = TxtEnc.typ + this.extraBit;
+    this.bitslen = this.proto.typ + this.extraBit;
 
     // The position of the first bit of the data in 0th node. In non-root
     // nodes, this would contain bitslen letters.
@@ -344,6 +347,15 @@ FrozenTrie.prototype = {
 
     // must impl put(low, high, data) and {v, cursor} = find(i, cursor)
     this.nodecache = cache;
+
+    // utf8 encoded delim for non-base32/64
+    this.encodedDelim = this.proto.delimEncoded();
+    this.encodedPeriod = this.proto.periodEncoded();
+  },
+
+  // must be kept in-sync with transform in trie.js
+  transform(str) {
+    return this.proto.encode(str).reverse();
   },
 
   /**
@@ -366,9 +378,9 @@ FrozenTrie.prototype = {
    * in the trie.
    */
   lookup: function (word) {
-    const debug = config.debug;
+    const debug = this.debug;
 
-    const index = word.lastIndexOf(ENC_DELIM[0]);
+    const index = word.lastIndexOf(this.encodedDelim[0]);
     if (index > 0) word = word.slice(0, index);
 
     // cursor tracks position of previous cache-hit in frozentrie:nodecache
@@ -387,9 +399,9 @@ FrozenTrie.prototype = {
 
       // if '.' is encountered, capture the interim node.value();
       // for ex: s.d.com => return values for com. & com.d. & com.d.s
-      if (periodEncVal[0] === word[i] && node.final()) {
+      if (this.encodedPeriod[0] === word[i] && node.final()) {
         if (!returnValue) returnValue = new Map();
-        const partial = TxtDec.decode(word.slice(0, i).reverse());
+        const partial = this.proto.decode(word.slice(0, i).reverse());
         returnValue.set(partial, node.value());
       }
 
@@ -463,7 +475,7 @@ FrozenTrie.prototype = {
     // we are on a final-node to know if we've got a match in the trie
     if (node.final()) {
       if (!returnValue) returnValue = new Map();
-      returnValue.set(TxtDec.decode(word.reverse()), node.value());
+      returnValue.set(this.proto.decode(word.reverse()), node.value());
     }
 
     if (debug) console.log("...lookup complete:", returnValue);
@@ -473,7 +485,7 @@ FrozenTrie.prototype = {
   },
 };
 
-export function createTrie(tdbuf, rdbuf, config, triecache = null) {
+export function createTrie(tdbuf, rdbuf, ftconfig, triecache = null) {
   // tdbuf, rdbuf must be untyped arraybuffers on all platforms
   // bufutil.concat, as one example, creates untyped arraybuffer,
   // as does nodejs' Buffer module. If what's passed is a typedarray,
@@ -484,9 +496,9 @@ export function createTrie(tdbuf, rdbuf, config, triecache = null) {
   // that is, tdv must instead be Uint16Array([0xff00, 0x00f3])
   const tdv = new bufferView[W](tdbuf);
   const rdv = new bufferView[W](rdbuf);
-  const nc = config.nodecount;
+  const nc = ftconfig.nodecount;
   const numbits = nc * 2 + 1;
   const rd = new RankDirectory(rdv, tdv, numbits, L1, L2);
 
-  return new FrozenTrie(tdv, rd, nc, triecache);
+  return new FrozenTrie(tdv, rd, nc, ftconfig, triecache);
 }

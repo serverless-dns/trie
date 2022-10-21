@@ -6,8 +6,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import * as codec from "./codec.js";
-
 /**
  * Number of bits (width) of each encoding unit; ie 6 => base64.
  */
@@ -35,11 +33,3 @@ export const config = {
   // optimize storing flags, that is, store less than 3 flags as-is
   optflags: true,
 };
-
-const codecType = config.useCodec6 ? codec.b6 : codec.b8;
-export const TxtEnc = new codec.Codec(codecType);
-export const TxtDec = TxtEnc;
-
-// utf8 encoded delim for non-base32/64
-export const ENC_DELIM = TxtEnc.delimEncoded();
-export const periodEncVal = TxtEnc.periodEncoded();
