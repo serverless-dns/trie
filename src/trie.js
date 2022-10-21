@@ -60,8 +60,8 @@ function TrieNode2(letter) {
   };
 }
 
-function Trie() {
-  this.init();
+function Trie(c) {
+  this.init(c);
 }
 
 Trie.prototype = {
