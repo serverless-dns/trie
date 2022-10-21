@@ -7,21 +7,18 @@
  */
 export const bitsSetTable256 = [];
 
-let init = false;
+initialize();
 
 // Initialise the lookup table
 function initialize() {
-  if (init) return;
   bitsSetTable256[0] = 0;
   for (let i = 0; i < 256; i++) {
     bitsSetTable256[i] = (i & 1) + bitsSetTable256[Math.floor(i / 2)];
   }
-  init = true;
 }
 
 // Returns the count of set bits in n
 export function countSetBits(n) {
-  if (!init) initialize();
   return (
     bitsSetTable256[n & 0xff] +
     bitsSetTable256[(n >>> 8) & 0xff] +
