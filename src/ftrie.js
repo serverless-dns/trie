@@ -30,6 +30,7 @@ function FrozenTrieNode(trie, index) {
 
   this.trie = trie;
   this.index = index;
+  this.proto = trie.proto;
   this.debug = trie.config.debug;
   this.config = trie.config;
 
