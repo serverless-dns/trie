@@ -174,7 +174,7 @@ function FrozenTrieNode(trie, index) {
     return [wordCached, cursorCached || null];
   };
 
-  this.debug = () => {
+  this.str = () => {
     log.d(
       this.index +
         " :i, fc: " +
@@ -259,8 +259,8 @@ function FrozenTrieNode(trie, index) {
           : optvalue;
         const tt = tagsToFlags(u8);
         valCached = codec.str2buf(tt);
-        if (debug) log.d("buf", valCached, "tag", tt);
-        if (debug) log.d("flag dec u8", u8, "enc u6", optvalue);
+        if (this.debug) log.d("buf", valCached, "tag", tt);
+        if (this.debug) log.d("flag dec u8", u8, "enc u6", optvalue);
       } else {
         valCached = this.config.useCodec6
           ? this.proto.decode16raw(optvalue)
@@ -271,10 +271,8 @@ function FrozenTrieNode(trie, index) {
     return valCached;
   };
 
-  if (debug) {
-    console.log(index, ":i, fc:", this.firstChild(), "tl:", this.letter());
-    console.log("c:", this.compressed(), "f:", this.final());
-    console.log("wh:", this.where(), "flag:", this.flag());
+  if (this.debug) {
+    console.log(this.str());
   }
 }
 
