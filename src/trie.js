@@ -799,6 +799,7 @@ export async function build(
   const base = Object.assign({}, config);
   trieConfig = Object.assign(base, trieConfig);
 
+  console.log("building trie with opts", trieConfig);
   const t = new Trie(trieConfig);
 
   let hosts = [];
@@ -879,33 +880,27 @@ export async function build(
     log.i("trie saved as td.txt");
   });
 
-  const aw2 = fs.writeFile(
-    outDir + "rd.txt",
-    rd.directory.bytes,
-    function (err) {
-      if (err) {
-        log.e(err);
-        throw err;
-      }
-      log.i("rank saved as rd.txt");
+  const rddir = rd.directory.bytes;
+  const aw2 = fs.writeFile(outDir + "rd.txt", rddir, function (err) {
+    if (err) {
+      log.e(err);
+      throw err;
     }
-  );
+    log.i("rank saved as rd.txt");
+  });
 
-  const aw3 = fs.writeFile(
-    outDir + "filetag.json",
-    JSON.stringify(blocklistConfig),
-    function (err) {
-      if (err) {
-        log.e(err);
-        throw err;
-      }
-      log.i("filetag.json saved");
+  const ftstr = JSON.stringify(blocklistConfig);
+  const aw3 = fs.writeFile(outDir + "filetag.json", ftstr, function (err) {
+    if (err) {
+      log.e(err);
+      throw err;
     }
-  );
+    log.i("filetag.json saved");
+  });
 
-  const tddigest = md5(aw1);
-  const rddigest = md5(aw2);
-  const ftdigest = md5(aw3);
+  const tddigest = md5(td);
+  const rddigest = md5(rddir);
+  const ftdigest = md5(bcstr);
 
   const basicconfig = {
     version: 1,
