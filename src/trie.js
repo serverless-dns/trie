@@ -798,7 +798,7 @@ export async function build(
       let lines = 0;
       for (const h of f.split("\n")) {
         const ht = tag[fname] + h.trim();
-        const htr = TxtEnc.encode(ht).reverse();
+        const htr = transform(ht);
         hosts.push(htr);
         lines += 1;
       }
@@ -914,7 +914,7 @@ export async function build(
     "celzero.com",
   ];
   for (const domainname of testdomains) {
-    const ts = TxtEnc.encode(domainname).reverse();
+    const ts = transform(domainname);
     const sresult = ft.lookup(ts);
     log.i("looking up domain: " + domainname, "result: ");
     if (sresult) {
@@ -925,4 +925,8 @@ export async function build(
       log.i(domainname, "not found in trie");
     }
   }
+}
+
+export function transform(str) {
+  return TxtEnc.encode(str).reverse();
 }
