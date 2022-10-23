@@ -6,7 +6,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import { config } from "./config.js";
 import { BitString } from "./bufreader.js";
 import { BitWriter } from "./bufwriter.js";
 
@@ -15,8 +14,8 @@ import { BitWriter } from "./bufwriter.js";
  * rank() and select() functions. The index can itself be encoded as a binary
  * string.
  */
-export function RankDirectory(directoryData, bitData, numBits, l1Size, l2Size) {
-  this.init(directoryData, bitData, numBits, l1Size, l2Size);
+export function RankDirectory(rdv, tdv, numBits, l1Size, l2Size, config) {
+  this.init(rdv, tdv, numBits, l1Size, l2Size, config);
 }
 
 /**
@@ -31,7 +30,7 @@ export function RankDirectory(directoryData, bitData, numBits, l1Size, l2Size) {
  *
  * @param l2Size number(bits) that each entry in the Level2 table summarizes.
  */
-export function createRankDirectory(data, nodeCount, l1Size, l2Size) {
+export function createRankDirectory(data, nodeCount, l1Size, l2Size, config) {
   const bits = new BitString(data);
   let p = 0;
   let i = 0;
@@ -76,15 +75,16 @@ export function createRankDirectory(data, nodeCount, l1Size, l2Size) {
 }
 
 RankDirectory.prototype = {
-  init: function (directoryData, trieData, numBits, l1Size, l2Size) {
-    this.directory = new BitString(directoryData);
-    this.data = new BitString(trieData);
+  init: function (rdv, tdv, numBits, l1Size, l2Size, cfg) {
+    this.directory = new BitString(rdv);
+    this.data = new BitString(tdv);
     this.l1Size = l1Size;
     this.l2Size = l2Size;
     this.l1Bits = Math.ceil(Math.log2(numBits));
     this.l2Bits = Math.ceil(Math.log2(l1Size));
     this.sectionBits = (l1Size / l2Size - 1) * this.l2Bits + this.l1Bits;
     this.numBits = numBits;
+    this.config = cfg;
   },
 
   /**
@@ -101,7 +101,7 @@ RankDirectory.prototype = {
   rank: function (which, x) {
     // fixme: selectsearch doesn't work when which === 1, throw error?
     // or, impl a proper O(1) select instead of the current gross hack.
-    if (config.selectsearch) {
+    if (this.config.selectsearch) {
       let rank = -1;
       let sectionPos = 0;
       if (x >= this.l2Size) {
@@ -110,7 +110,7 @@ RankDirectory.prototype = {
         x = x % this.l2Size;
       }
       const ans = x > 0 ? this.data.pos0(rank + 1, x) : rank;
-      if (config.debug) {
+      if (this.config.debug) {
         console.log("ans:", ans, rank, ":r, x:", x, "s:", sectionPos);
       }
       return ans;
@@ -127,7 +127,7 @@ RankDirectory.prototype = {
     if (o >= this.l1Size) {
       sectionPos = ((o / this.l1Size) | 0) * this.sectionBits;
       rank = this.directory.get(sectionPos - this.l1Bits, this.l1Bits);
-      if (config.debug) {
+      if (this.config.debug) {
         console.log("o: " + rank + " sec: " + sectionPos);
       }
       o = o % this.l1Size;
@@ -136,14 +136,14 @@ RankDirectory.prototype = {
     if (o >= this.l2Size) {
       sectionPos += ((o / this.l2Size) | 0) * this.l2Bits;
       rank += this.directory.get(sectionPos - this.l2Bits, this.l2Bits);
-      if (config.debug) {
+      if (this.config.debug) {
         console.log("o2: " + rank + " sec: " + sectionPos);
       }
     }
 
     rank += this.data.count(x - (x % this.l2Size), (x % this.l2Size) + 1);
 
-    if (config.debug) {
+    if (this.config.debug) {
       console.log("ans:", rank, "x:", o, "s:", sectionPos, "o:", x);
     }
 
@@ -160,7 +160,7 @@ RankDirectory.prototype = {
     let val = -1;
 
     // todo: assert y less than numBits
-    if (config.selectsearch) {
+    if (this.config.selectsearch) {
       return this.rank(0, y);
     }
 

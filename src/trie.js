@@ -859,7 +859,7 @@ export async function build(
   const nodeCount = t.getNodeCount();
 
   log.i("building rank; nodecount/L1/L2", nodeCount, L1, L2);
-  const rd = createRankDirectory(td, nodeCount, L1, L2);
+  const rd = createRankDirectory(td, nodeCount, L1, L2, trieConfig);
 
   const ft = new FrozenTrie(td, rd, nodeCount, trieConfig);
   const end = Date.now();

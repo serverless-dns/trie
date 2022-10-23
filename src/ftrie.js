@@ -502,7 +502,7 @@ export function createTrie(tdbuf, rdbuf, ftconfig, triecache = null) {
   const rdv = new bufferView[W](rdbuf);
   const nc = ftconfig.nodecount;
   const numbits = nc * 2 + 1;
-  const rd = new RankDirectory(rdv, tdv, numbits, L1, L2);
+  const rd = new RankDirectory(rdv, tdv, numbits, L1, L2, ftconfig);
 
   return new FrozenTrie(tdv, rd, nc, ftconfig, triecache);
 }
