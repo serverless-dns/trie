@@ -26,8 +26,6 @@ export const config = {
   debug: false,
   // transforms select ops into rank ops with help of a modified l1/l2 layer
   selectsearch: true,
-  // optimize pos0 impl by probing "longer steps" than usual
-  fastPos: true,
   // use codec type b6 to convert js-str to bytes and vice-versa
   useCodec6: true,
   // optimize storing flags, that is, store less than 3 flags as-is

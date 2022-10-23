@@ -7,7 +7,9 @@
  */
 
 import { bitsSetTable256, countSetBits } from "./bitsutil.js";
-import { W, config } from "./config.js";
+import { W } from "./config.js";
+
+const debug = false;
 
 /**
  * Given a string of data (eg, in BASE-64), the BitString class supports
@@ -110,24 +112,10 @@ BitString.prototype = {
     let step = 16;
     let index = i;
 
-    if (!config.fastPos) {
-      while (n > 0) {
-        step = n <= 16 ? n : 16;
-        const bits0 = step - countSetBits(this.get(i, step));
-        if (config.debug) {
-          console.log(i, ":i|step:", step, "get:", this.get(i, step), "n:", n);
-        }
-        n -= bits0;
-        i += step;
-        index = i - 1;
-      }
-      return index;
-    }
-
     while (n > 0) {
       const d = this.get(i, step);
       const bits0 = step - countSetBits(d);
-      if (config.debug) {
+      if (debug) {
         console.log(i, ":i|step:", step, "get:", this.get(i, step), "n:", n);
       }
 
@@ -196,7 +184,7 @@ function bit0p(n, p) {
     // next lsb-bit in 'n'
     n = n >>> 1;
   }
-  if (config.debug) {
+  if (debug) {
     console.log(String.fromCharCode(m).charCodeAt(0).toString(2), m, i, p, c);
   }
   // if 'p' zero-bits are accounted for, then 'i' is the p-th zero-bit in 'n'
