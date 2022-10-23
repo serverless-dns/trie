@@ -8,14 +8,15 @@
 
 import { BitString } from "./bufreader.js";
 import { BitWriter } from "./bufwriter.js";
+import { L1, L2 } from "./config.js";
 
 /**
  * The rank directory allows you to build an index to quickly compute the
  * rank() and select() functions. The index can itself be encoded as a binary
  * string.
  */
-export function RankDirectory(rdv, tdv, numBits, l1Size, l2Size, config) {
-  this.init(rdv, tdv, numBits, l1Size, l2Size, config);
+export function RankDirectory(rdv, tdv, config) {
+  this.init(rdv, tdv, config);
 }
 
 /**
@@ -30,8 +31,12 @@ export function RankDirectory(rdv, tdv, numBits, l1Size, l2Size, config) {
  *
  * @param l2Size number(bits) that each entry in the Level2 table summarizes.
  */
-export function createRankDirectory(data, nodeCount, l1Size, l2Size, config) {
+export function createRankDirectory(data, config) {
   const bits = new BitString(data);
+  const nodeCount = config.nodecount;
+  const l1Size = L1;
+  const l2Size = L2;
+
   let p = 0;
   let i = 0;
   let count1 = 0;
@@ -71,19 +76,23 @@ export function createRankDirectory(data, nodeCount, l1Size, l2Size, config) {
     }
   }
 
-  return new RankDirectory(directory.getData(), data, numBits, l1Size, l2Size);
+  return new RankDirectory(directory.getData(), data, config);
 }
 
 RankDirectory.prototype = {
-  init: function (rdv, tdv, numBits, l1Size, l2Size, cfg) {
+  init: function (rdv, tdv, cfg) {
     this.directory = new BitString(rdv);
     this.data = new BitString(tdv);
-    this.l1Size = l1Size;
-    this.l2Size = l2Size;
-    this.l1Bits = Math.ceil(Math.log2(numBits));
-    this.l2Bits = Math.ceil(Math.log2(l1Size));
-    this.sectionBits = (l1Size / l2Size - 1) * this.l2Bits + this.l1Bits;
-    this.numBits = numBits;
+    const nc = cfg.nodecount;
+
+    this.l1Size = L1;
+    this.l2Size = L2;
+    this.numBits = nc * 2 + 1;
+    this.l1Bits = Math.ceil(Math.log2(this.numBits));
+    this.l2Bits = Math.ceil(Math.log2(this.l1Size));
+    this.sectionBits =
+      (this.l1Size / this.l2Size - 1) * this.l2Bits + this.l1Bits;
+
     this.config = cfg;
   },
 

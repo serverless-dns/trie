@@ -10,7 +10,7 @@
 
 import * as codec from "./codec.js";
 import { tagsToFlags } from "./stamp.js";
-import { W, bufferView, L1, L2, config } from "./config.js";
+import { W, bufferView, withDefaults } from "./config.js";
 import { RankDirectory } from "./rank.js";
 import { BitString } from "./bufreader.js";
 
@@ -321,15 +321,14 @@ FrozenTrieNode.prototype = {
  * The global L1 and L2 constants are used to determine the L1Size and L2size.
  * @param {*} nodeCount The number of nodes in the trie.
  */
-export function FrozenTrie(data, rdir, nodeCount, ftconfig, cache = null) {
-  const base = Object.assign({}, config);
-  ftconfig = Object.assign(base, ftconfig);
-  this.init(data, rdir, nodeCount, ftconfig, cache);
+export function FrozenTrie(data, rdir, ftconfig, cache = null) {
+  this.init(data, rdir, ftconfig, cache);
 }
 
 FrozenTrie.prototype = {
-  init: function (trieData, rdir, nodeCount, ftconfig, cache = null) {
+  init: function (trieData, rdir, ftconfig, cache = null) {
     const codecType = ftconfig.useCodec6 ? codec.b6 : codec.b8;
+    const nodeCount = ftconfig.nodecount;
     this.config = ftconfig;
     this.proto = new codec.Codec(codecType);
 
@@ -500,9 +499,10 @@ export function createTrie(tdbuf, rdbuf, ftconfig, triecache = null) {
   }
   const tdv = new bufferView[W](tdbuf);
   const rdv = new bufferView[W](rdbuf);
-  const nc = ftconfig.nodecount;
-  const numbits = nc * 2 + 1;
-  const rd = new RankDirectory(rdv, tdv, numbits, L1, L2, ftconfig);
 
-  return new FrozenTrie(tdv, rd, nc, ftconfig, triecache);
+  // assign defaults if missing
+  ftconfig = withDefaults(ftconfig);
+
+  const rdir = new RankDirectory(rdv, tdv, ftconfig);
+  return new FrozenTrie(tdv, rdir, ftconfig, triecache);
 }

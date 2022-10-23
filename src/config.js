@@ -31,3 +31,8 @@ export const config = {
   // optimize storing flags, that is, store less than 3 flags as-is
   optflags: true,
 };
+
+export function withDefaults(cfg) {
+  const base = Object.assign({}, config);
+  return Object.assign(base, cfg);
+}
