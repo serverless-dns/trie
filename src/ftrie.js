@@ -55,7 +55,7 @@ function FrozenTrieNode(trie, index) {
     if (typeof whCached === "undefined") {
       // bits for node-headers that are 2-bit wide per trie-node (used to diff
       // between none/final/value/compressed node-types) should be skipped
-      // ie, a letter is 0bxxhhhhllll, where xx are the 2-bit node-header
+      // ie, a letter is 0bxxhhhhllll, where xx is the 2-bit node-header
       const extrabits = this.trie.extraBit;
       const bitsize = this.trie.bitslen - extrabits;
       whCached = this.trie.data.get(
@@ -175,20 +175,20 @@ function FrozenTrieNode(trie, index) {
   };
 
   this.str = () => {
-    log.d(
+    return (
       this.index +
-        " :i, fc: " +
-        this.firstChild() +
-        " tl: " +
-        this.letter() +
-        " c: " +
-        this.compressed() +
-        " f: " +
-        this.final() +
-        " wh: " +
-        this.where() +
-        " flag: " +
-        this.flag()
+      " :i, fc: " +
+      this.firstChild() +
+      " tl: " +
+      this.letter() +
+      " c: " +
+      this.compressed() +
+      " f: " +
+      this.final() +
+      " wh: " +
+      this.where() +
+      " flag: " +
+      this.flag()
     );
   };
 
