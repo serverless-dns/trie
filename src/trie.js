@@ -17,7 +17,7 @@ import { BitWriter } from "./bufwriter.js";
 import { countSetBits } from "./bitsutil.js";
 import { dec16, chr16 } from "./b64.js";
 import { flagsToTags } from "./stamp.js";
-import { L1, L2, config } from "./config.js";
+import { L1, L2, config, withDefaults } from "./config.js";
 
 // impl based on S Hanov's succinct-trie: stevehanov.ca/blog/?id=120
 
@@ -858,15 +858,29 @@ export async function build(
   const td = t.encode();
   const nodeCount = t.getNodeCount();
 
-  log.i("building rank; nodecount/L1/L2", nodeCount, L1, L2);
-  const rd = createRankDirectory(td, nodeCount, L1, L2, trieConfig);
+  let basicconfig = {
+    version: 1,
+    nodecount: nodeCount,
+  };
 
-  const ft = new FrozenTrie(td, rd, nodeCount, trieConfig);
+  basicconfig = withDefaults(basicconfig);
+
+  log.i("building rank; nodecount/L1/L2", nodeCount, L1, L2);
+  const rddir = createRankDirectory(td, basicconfig);
+
+  const ft = new FrozenTrie(td, rddir, basicconfig);
   const end = Date.now();
 
   log.i("time (ms) spent creating trie+rank: ", end - start);
 
-  log.i("saving trie, rank, basicconfig, filetag");
+  const rd = rddir.directory.bytes;
+  const ftstr = JSON.stringify(blocklistConfig);
+
+  basicconfig.tdmd5 = md5(td);
+  basicconfig.rdmd5 = md5(rd);
+  basicconfig.ftmd5 = md5(ftstr);
+
+  log.i("saving trie/rank/filetag/basicconfig", basicconfig);
 
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir);
@@ -880,8 +894,7 @@ export async function build(
     log.i("trie saved as td.txt");
   });
 
-  const rddir = rd.directory.bytes;
-  const aw2 = fs.writeFile(outDir + "rd.txt", rddir, function (err) {
+  const aw2 = fs.writeFile(outDir + "rd.txt", rd, function (err) {
     if (err) {
       log.e(err);
       throw err;
@@ -889,7 +902,6 @@ export async function build(
     log.i("rank saved as rd.txt");
   });
 
-  const ftstr = JSON.stringify(blocklistConfig);
   const aw3 = fs.writeFile(outDir + "filetag.json", ftstr, function (err) {
     if (err) {
       log.e(err);
@@ -897,20 +909,6 @@ export async function build(
     }
     log.i("filetag.json saved");
   });
-
-  const tddigest = md5(td);
-  const rddigest = md5(rddir);
-  const ftdigest = md5(bcstr);
-
-  const basicconfig = {
-    version: 1,
-    nodecount: nodeCount,
-    tdmd5: tddigest,
-    rdmd5: rddigest,
-    ftmd5: ftdigest,
-    useCodec6: trieConfig.useCodec6,
-    optflags: trieConfig.optflags,
-  };
 
   const aw4 = fs.writeFile(
     outDir + "basicconfig.json",
@@ -925,8 +923,6 @@ export async function build(
   );
 
   await Promise.all([aw1, aw2, aw3, aw4]);
-
-  log.i("digests[td/rd/ft]", tddigest, rddigest, ftdigest);
 
   log.sys();
   log.i("Lookup a few domains in this new trie");
