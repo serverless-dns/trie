@@ -6,6 +6,11 @@
   "description": "A compact zero-copy trie, used by serverless-dns",
   "main": "./src/trie.js",
   "type": "module",
+  "exports": {
+    ".": "./src/trie.js",
+    "./ftrie.js": "./src/ftrie.js",
+    "./stamp.js": "./src/stamp.js"
+  },
   "scripts": {
     "clean": "npm run clean",
     "clean:node": "rm -rf node_modules/ package-lock.json",
