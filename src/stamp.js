@@ -8,10 +8,9 @@
 
 import { countSetBits } from "./bitsutil.js";
 import { MaskBottom } from "./bufreader.js";
-import { config } from "./config.js";
 import { dec16, chr16 } from "./b64.js";
 
-const debug = config.debug;
+const debug = false;
 
 export function flagsToTags(flags) {
   // flags has to be an array of 16-bit integers.
