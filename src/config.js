@@ -19,7 +19,7 @@ export const bufferView = { 15: Uint16Array, 16: Uint16Array, 6: Uint8Array };
 export const L1 = 32 * 32;
 export const L2 = 32;
 
-export const config = {
+const config = {
   // inspect trie building stats
   inspect: false,
   // debug prints debug logs
@@ -34,5 +34,12 @@ export const config = {
 
 export function withDefaults(cfg) {
   const base = Object.assign({}, config);
-  return Object.assign(base, cfg);
+  const r = Object.assign(base, cfg);
+
+  // optflags only supported by codec b6
+  if (!r.useCodec6) {
+    r.optflags = false;
+  }
+
+  return r;
 }

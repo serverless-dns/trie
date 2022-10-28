@@ -17,7 +17,7 @@ import { BitWriter } from "./bufwriter.js";
 import { countSetBits } from "./bitsutil.js";
 import { dec16, chr16 } from "./b64.js";
 import { flagsToTags } from "./stamp.js";
-import { L1, L2, config, withDefaults } from "./config.js";
+import { L1, L2, withDefaults } from "./config.js";
 
 // impl based on S Hanov's succinct-trie: stevehanov.ca/blog/?id=120
 
@@ -796,10 +796,7 @@ export async function build(
     tag[key] = d.split("").reverse().join("");
   }
 
-  const base = Object.assign({}, config);
-  trieConfig = Object.assign(base, trieConfig);
-
-  console.log("building trie with opts", trieConfig);
+  console.log("building trie with opts", withDefaults(trieConfig));
   const t = new Trie(trieConfig);
 
   let hosts = [];
@@ -815,7 +812,7 @@ export async function build(
         log.i("empty file", bfile);
         continue;
       }
-      if (config.debug) {
+      if (trieConfig.debug) {
         log.d("adding: " + bfile, fname + " <-file | tag-> " + tag[fname]);
       }
       let lines = 0;
