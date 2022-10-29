@@ -541,7 +541,7 @@ Trie.prototype = {
             const v = this.config.useCodec6
               ? this.proto.decode16raw(encValue)
               : encValue;
-            flags = flagsToTags(v);
+            flags = flagsToTags(v, /* throw-on-err*/ true);
           }
           // accumulate the count of number of blocklists
           // that appear together

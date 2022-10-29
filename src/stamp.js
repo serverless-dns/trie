@@ -12,7 +12,7 @@ import { dec16, chr16 } from "./b64.js";
 
 const debug = false;
 
-export function flagsToTags(flags) {
+export function flagsToTags(flags, throwonerr = false) {
   // flags has to be an array of 16-bit integers.
   const header = flags[0];
   const tagIndices = [];
@@ -26,7 +26,9 @@ export function flagsToTags(flags) {
   }
   // flags.length must be equal to tagIndices.length
   if (tagIndices.length !== flags.length - 1) {
-    console.log(tagIndices, flags, "flags/header mismatch (upsert bug?)");
+    const e = [tagIndices, flags, "flags/header mismatch (upsert bug?)"];
+    if (throwonerr) throw new Error(e);
+    else console.log(...e);
     return values;
   }
   for (let i = 0; i < flags.length; i++) {
