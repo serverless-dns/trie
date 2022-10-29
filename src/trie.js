@@ -796,7 +796,8 @@ export async function build(
     tag[key] = d.split("").reverse().join("");
   }
 
-  console.log("building trie with opts", withDefaults(trieConfig));
+  trieConfig = withDefaults(trieConfig);
+  console.log("building trie with opts", trieConfig);
   const t = new Trie(trieConfig);
 
   let hosts = [];
