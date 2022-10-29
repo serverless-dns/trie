@@ -861,7 +861,7 @@ export async function build(
     nodecount: nodeCount,
   };
 
-  basicconfig = withDefaults(basicconfig);
+  basicconfig = Object.assign(basicconfig, trieConfig);
 
   log.i("building rank; nodecount/L1/L2", nodeCount, L1, L2);
   const rddir = createRankDirectory(td, basicconfig);
