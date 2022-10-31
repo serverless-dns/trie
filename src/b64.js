@@ -29,6 +29,10 @@ for (let i = 0; i < BASE64.length; i++) {
   ORD[BASE64[i]] = i;
 }
 
+export function dec(chr, w) {
+  return decm(chr, w === 6);
+}
+
 export function dec16(chr) {
   return decm(chr, false);
 }

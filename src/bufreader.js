@@ -8,6 +8,7 @@
 
 import { bitsSetTable256, countSetBits } from "./bitsutil.js";
 import { W } from "./config.js";
+import { dec } from "./b64.js";
 
 const debug = false;
 
@@ -38,6 +39,8 @@ BitString.prototype = {
   init: function (str) {
     this.bytes = str;
     this.length = this.bytes.length * W;
+    // trie#flag/value-node uses binary-string, ref: trie#levelorder
+    this.binaryString = typeof str === "string";
   },
 
   /**
@@ -53,14 +56,18 @@ BitString.prototype = {
   encode: function (n) {
     const e = [];
     for (let i = 0; i < this.length; i += n) {
-      e.push(this.get(i, Math.min(this.length, n)));
+      if (!this.binaryString) {
+        e.push(this.get(i, Math.min(this.length, n)));
+      } else {
+        e.push(this.get2(i, Math.min(this.length, n)));
+      }
     }
     return e;
   },
 
   /**
-   * Returns a decimal number, consisting of a certain number of bits (n)
-   * starting at a certain position, p.
+   * Returns a decimal number, consisting of n bits starting at position p
+   * in a uint16, this.bytes.
    */
   get: function (p, n) {
     // supports n <= 31, since js bitwise operations work only on +ve ints
@@ -83,6 +90,39 @@ BitString.prototype = {
       }
       if (n > 0) {
         result = (result << n) | (this.bytes[(p / W) | 0] >> (W - n));
+      }
+
+      return result;
+    }
+  },
+
+  /**
+   * Returns a decimal number consisting of n bits starting at position p
+   * in a binary-string, this.bytes
+   */
+  get2: function (p, n) {
+    // case 1: bits lie within the given byte
+    if ((p % W) + n <= W) {
+      return (
+        (dec(this.bytes[(p / W) | 0], W) & MaskTop[W][p % W]) >>
+        (W - (p % W) - n)
+      );
+    } else {
+      // case 2: bits lie incompletely in the given byte
+      let result = dec(this.bytes[(p / W) | 0], W) & MaskTop[W][p % W];
+
+      const l = W - (p % W);
+      p += l;
+      n -= l;
+
+      while (n >= W) {
+        result = (result << W) | dec(this.bytes[(p / W) | 0], W);
+        p += W;
+        n -= W;
+      }
+
+      if (n > 0) {
+        result = (result << n) | (dec(this.bytes[(p / W) | 0], W) >> (W - n));
       }
 
       return result;
