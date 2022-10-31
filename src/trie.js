@@ -540,7 +540,7 @@ Trie.prototype = {
           } else {
             const v = this.config.useCodec6
               ? this.proto.decode16raw(encValue)
-              : encValue;
+              : codec.str2buf(flagNode.letter);
             flags = flagsToTags(v, /* throw-on-err*/ true);
           }
           // accumulate the count of number of blocklists
