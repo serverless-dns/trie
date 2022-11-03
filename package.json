@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@serverless-dns/trie",
-  "version": "0.0.1",
+  "version": "0.0.5",
   "license": "MPL-2.0",
   "description": "A compact zero-copy trie, used by serverless-dns",
   "main": "./src/trie.js",
