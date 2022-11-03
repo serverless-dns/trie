@@ -853,6 +853,8 @@ export async function build(
 
   log.i("encoding trie");
   log.sys();
+
+  // generate trie-data
   const td = t.encode();
   const nodeCount = t.getNodeCount();
 
@@ -861,8 +863,10 @@ export async function build(
     nodecount: nodeCount,
   };
 
+  // assign trie-config defaults to basicconfig
   basicconfig = Object.assign(basicconfig, trieConfig);
 
+  // create rank directory
   log.i("building rank; nodecount/L1/L2", nodeCount, L1, L2);
   const rddir = createRankDirectory(td, basicconfig);
 
@@ -871,18 +875,27 @@ export async function build(
 
   log.i("time (ms) spent creating trie+rank: ", end - start);
 
+  // serialize rank dir to u8/buffer
   const rd = rddir.directory.bytes;
+
+  // serialize filetag json
   const ftstr = JSON.stringify(blocklistConfig);
 
+  if (!fs.existsSync(outDir)) {
+    fs.mkdirSync(outDir);
+  }
+
+  // split td (which is u16) into multiple files
+  const tdparts = await splitAndSaveTd(td.buffer, outDir);
+
+  // tdparts is 0-indexed; ie, tdparts([0,1,2]) = 2 when len([0,1,2]) = 3
+  basicconfig.tdparts = tdparts.length - 1;
+  // register digests for td, rd, filetag
   basicconfig.tdmd5 = md5(td);
   basicconfig.rdmd5 = md5(rd);
   basicconfig.ftmd5 = md5(ftstr);
 
   log.i("saving trie/rank/filetag/basicconfig", basicconfig);
-
-  if (!fs.existsSync(outDir)) {
-    fs.mkdirSync(outDir);
-  }
 
   const aw1 = fs.writeFile(outDir + "td.txt", td, function (err) {
     if (err) {
@@ -956,4 +969,42 @@ export async function build(
 // buf must be either TypedArray or node:Buffer
 function md5(buf) {
   return createHash("md5").update(buf).digest("hex");
+}
+
+// ab is array-buffer (not node:Buffer)
+function splitAndSaveTd(ab, dirent, mib = 30) {
+  // n is zero-indexed, ie mib = 30 and...
+  // if len = 29, then 29 / 30 => 0 => [00] => 1 split
+  // if len = 31, then 31 / 30 => 1 => [00, 01] => 2 splits
+  const step = mib * 1024 * 1024;
+  const len = ab.byteLength;
+  const n = Math.floor(len / step);
+  const promisedtds = [];
+  let next = 0;
+  for (let i = 0; i <= n; i++) {
+    // td00.txt, td01.txt, td02.txt, ... , td98.txt, td100.txt, ...
+    const fname =
+      "td" +
+      i.toLocaleString("en-US", {
+        minimumIntegerDigits: 2,
+        useGrouping: false,
+      }) +
+      ".txt";
+
+    const begin = next;
+    const end = Math.min(begin + step, len);
+    const chunk = new Uint8Array(ab).subarray(begin, end);
+
+    const promisedFile = fs.writeFile(dirent + fname, chunk, function (err) {
+      if (err) {
+        log.e(err);
+        throw err;
+      }
+      log.i(begin, " trie-split to", end, "saved as", fname);
+    });
+
+    next += step;
+    promisedtds.push(promisedFile);
+  }
+  return Promise.all(promisedtds);
 }
