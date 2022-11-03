@@ -36,9 +36,9 @@ export function withDefaults(cfg) {
   const base = Object.assign({}, config);
   const r = Object.assign(base, cfg);
 
-  // optflags only supported by codec b6
   if (!r.useCodec6) {
-    r.optflags = false;
+    // for codec b8, turn off optflags unless explicit in client's cfg
+    r.optflags = cfg.optflags || false;
   }
 
   return r;
