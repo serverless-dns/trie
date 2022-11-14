@@ -13,6 +13,7 @@ import { tagsToFlags } from "./stamp.js";
 import { W, bufferView, withDefaults } from "./config.js";
 import { RankDirectory } from "./rank.js";
 import { BitString } from "./bufreader.js";
+import { FrozenTrieCache } from "./ftcache.js";
 
 /**
  * This class is used for traversing the succinctly encoded trie.
@@ -325,6 +326,10 @@ export function FrozenTrie(data, rdir, ftconfig, cache = null) {
   this.init(data, rdir, ftconfig, cache);
 }
 
+export function makeCache(sz) {
+  return new FrozenTrieCache(sz);
+}
+
 FrozenTrie.prototype = {
   init: function (trieData, rdir, ftconfig, cache = null) {
     const codecType = ftconfig.useCodec6 ? codec.b6 : codec.b8;
@@ -343,8 +348,9 @@ FrozenTrie.prototype = {
     // nodes, this would contain bitslen letters.
     this.letterStart = nodeCount * 2 + 1;
 
+    const cacheSize = Math.floor(nodeCount * 0.07);
     // must impl put(low, high, data) and {v, cursor} = find(i, cursor)
-    this.nodecache = cache;
+    this.nodecache = cache == null ? makeCache(cacheSize) : cache;
 
     // utf8 encoded delim for non-base32/64
     this.encodedDelim = this.proto.delimEncoded();
