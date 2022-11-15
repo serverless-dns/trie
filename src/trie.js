@@ -785,20 +785,14 @@ export async function build(
   blocklistConfig,
   trieConfig = null
 ) {
-  // in key:value pair, key cannot be anything that coerces to boolean false
-  const tag = {};
-  for (const [key, entry] of Object.entries(blocklistConfig)) {
-    // value is an immutable id for a given blocklist
-    // key always equals entry.value
-    const id = entry.value;
-    // reverse the value since it is prepended to the front of key
-    const d = codec.delim + id;
-    tag[key] = d.split("").reverse().join("");
-  }
-
   trieConfig = withDefaults(trieConfig);
   console.log("building trie with opts", trieConfig);
   const t = new Trie(trieConfig);
+
+  const unames = {};
+  for (const [u, entry] of Object.entries(blocklistConfig)) {
+    unames[entry.value] = u;
+  }
 
   let hosts = [];
   try {
@@ -806,25 +800,32 @@ export async function build(
     let totallines = 0;
     for (const bfile of inFiles) {
       const patharr = bfile.split("/");
-      // fname is same as blocklistConfig's  value
+      // fname is same as blocklistConfig's entry.value
       const fname = patharr[patharr.length - 1].split(".")[0];
       const f = fs.readFileSync(bfile, "utf8");
       if (f.length <= 0) {
         log.i("empty file", bfile);
         continue;
       }
-      if (trieConfig.debug) {
-        log.d("adding: " + bfile, fname + " <-file | tag-> " + tag[fname]);
+      // fname always corresponds to an immutable id for a given blocklist
+      // fname should always equal conf[x].value
+      // reverse the value since it is prepended to the front of key
+      const d = codec.delim + fname;
+      const tag = d.split("").reverse().join("");
+      // uid is the legacy immutable id (3 letter char) for a given blocklist
+      const uid = unames[fname];
+      if (trieConfig.debug || true) {
+        log.d(uid + "; adding: " + bfile, fname + " <-file | tag-> " + tag);
       }
       let lines = 0;
       for (const h of f.split("\n")) {
-        const ht = tag[fname] + h.trim();
+        const ht = tag + h.trim();
         const htr = t.transform(ht);
         hosts.push(htr);
         lines += 1;
       }
       totallines = totallines + lines;
-      blocklistConfig[fname].entries = lines;
+      blocklistConfig[uid].entries = lines;
       totalfiles += 1;
     }
     log.i("Lines: " + totallines, "Files: " + totalfiles);
