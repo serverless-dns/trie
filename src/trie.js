@@ -76,6 +76,7 @@ Trie.prototype = {
 
     const codecType = cfg.useCodec6 ? codec.b6 : codec.b8;
     this.config = cfg;
+
     this.proto = new codec.Codec(codecType);
     // utf8 encoded delim for non-base32/64
     this.encodedDelim = this.proto.delimEncoded();
@@ -780,6 +781,64 @@ function lex(a, b) {
   return lenDiff;
 }
 
+async function processBlocklist(trie, bfile) {
+  const patharr = bfile.split("/");
+  // fname is an int always same as blocklistConfig's entry.value
+  const fname = patharr[patharr.length - 1].split(".")[0];
+  const f = fs.readFileSync(bfile, "utf8");
+  // fname always corresponds to an immutable id for a given blocklist
+  // fname should always equal conf[x].value
+  // reverse the value since it is prepended to the front of key
+  const d = codec.delim + fname;
+  const tag = d.split("").reverse().join("");
+  if (trie.config.debug) {
+    log.d(fname + "; adding: " + bfile, fname + " <-file | tag-> " + tag);
+  }
+  return extractJob(trie, f, fname, tag);
+}
+
+async function extractJob(trie, f, fname, rtag) {
+  let lines = 0;
+  let discards = 0;
+  const hosts = [];
+
+  if (f.length <= 0) {
+    log.i("empty file", bfile);
+    return [hosts, fname, lines, discards];
+  }
+
+  const visited = new Set();
+  for (const h of f.split("\n")) {
+    const trimmed = h.trim();
+    if (trimmed.length === 0) continue;
+
+    lines += 1;
+
+    // www.example.com -> [www, example, com]
+    const subs = trimmed.split(".");
+    let cur = null;
+    let skip = false;
+    for (const s of subs) {
+      if (skip) break;
+      // www . google . com
+      cur = cur == null ? s : cur + "." + s;
+      // if we've seen this subdomain before, skip it
+      skip = visited.has(cur);
+    }
+    if (!skip) {
+      visited.add(trimmed);
+      // if the tag is 173, rtag is 371#
+      // where # is a predefined delimiter
+      const ht = rtag + trimmed;
+      // transformer encodes (u8/u6) + reverses ht
+      hosts.push(trie.transform(ht));
+    } else {
+      discards += 1;
+    }
+  }
+  return [hosts, fname, lines, discards];
+}
+
 export async function build(
   inFiles,
   outDir,
@@ -790,43 +849,50 @@ export async function build(
   log.i("building trie with opts", trieConfig);
   const t = new Trie(trieConfig);
 
-  const unames = compat.legacyNames(blocklistConfig);
-
   let hosts = [];
   try {
+    // total number of blocklist files
     let totalfiles = 0;
+    // total hosts in this files
     let totallines = 0;
+    // discard hosts that are subdomains of other hosts in the same file
+    let totaldiscards = 0;
+
+    const promisedJobs = [];
+    // for each blocklist file, extract the hosts, and add them to the trie
     for (const bfile of inFiles) {
-      const patharr = bfile.split("/");
-      // fname is same as blocklistConfig's entry.value
-      const fname = patharr[patharr.length - 1].split(".")[0];
-      const f = fs.readFileSync(bfile, "utf8");
-      if (f.length <= 0) {
-        log.i("empty file", bfile);
-        continue;
-      }
-      // fname always corresponds to an immutable id for a given blocklist
-      // fname should always equal conf[x].value
-      // reverse the value since it is prepended to the front of key
-      const d = codec.delim + fname;
-      const tag = d.split("").reverse().join("");
-      // uid is the legacy immutable id (3 letter char) for a given blocklist
-      const uid = unames[fname];
-      if (trieConfig.debug || true) {
-        log.d(uid + "; adding: " + bfile, fname + " <-file | tag-> " + tag);
-      }
-      let lines = 0;
-      for (const h of f.split("\n")) {
-        const ht = tag + h.trim();
-        const htr = t.transform(ht);
-        hosts.push(htr);
-        lines += 1;
-      }
-      totallines = totallines + lines;
+      const j = processBlocklist(t, bfile);
+      promisedJobs.push(j);
+    }
+
+    const results = await Promise.all(promisedJobs);
+    const unames = compat.legacyNames(blocklistConfig);
+
+    for (const r of results) {
+      const [dom, f, lines, discards] = r;
+
+      if (!dom || dom.length <= 0) continue;
+      log.i("id: " + f, "a: " + dom.length, "h: " + hosts.length);
+
+      hosts.push(...dom);
+
+      // uid is the legacy immutable id (3 letter char)
+      // for a given blocklist file name, f
+      const uid = unames[f];
+
+      totallines += lines;
+      totaldiscards += discards;
       blocklistConfig[uid].entries = lines;
+      blocklistConfig[uid].discards = discards;
       totalfiles += 1;
     }
-    log.i("Lines: " + totallines, "Files: " + totalfiles);
+
+    log.i(
+      "hosts:Total -> " + totallines,
+      "| hosts:Discards -> " + totaldiscards,
+      "| files:Total -> " + promisedJobs.length,
+      "| files:Processed -> " + totalfiles
+    );
   } catch (e) {
     log.e(e);
     throw e;
