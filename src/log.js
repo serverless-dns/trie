@@ -64,8 +64,8 @@ export function sys(extra = false) {
   const rss = meminfo.rss / btomb;
   const totalheap = meminfo.heapTotal / btomb;
   const usedheap = meminfo.heapUsed / btomb;
-  const ext = meminfo.external / btomb;
-  const buf = meminfo.arrayBuffers / btomb;
+  // const ext = meminfo.external / btomb;
+  // const buf = meminfo.arrayBuffers / btomb;
   i(
     "<meminfo>",
     "| rss",
@@ -73,11 +73,11 @@ export function sys(extra = false) {
     "| heap-total",
     totalheap,
     "| heap-used",
-    usedheap,
-    "| external",
-    ext,
-    "| buffers",
-    buf
+    usedheap
+    // "| external",
+    // ext,
+    // "| buffers",
+    // buf
   );
   if (extra) {
     // proc info
