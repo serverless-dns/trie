@@ -18,6 +18,7 @@ import { countSetBits } from "./bitsutil.js";
 import { dec16, chr16 } from "./b64.js";
 import { flagsToTags } from "./stamp.js";
 import { L1, L2, withDefaults } from "./config.js";
+import * as compat from "./compat.js";
 
 // impl based on S Hanov's succinct-trie: stevehanov.ca/blog/?id=120
 
@@ -786,13 +787,10 @@ export async function build(
   trieConfig = null
 ) {
   trieConfig = withDefaults(trieConfig);
-  console.log("building trie with opts", trieConfig);
+  log.i("building trie with opts", trieConfig);
   const t = new Trie(trieConfig);
 
-  const unames = {};
-  for (const [u, entry] of Object.entries(blocklistConfig)) {
-    unames[entry.value] = u;
-  }
+  const unames = compat.legacyNames(blocklistConfig);
 
   let hosts = [];
   try {
@@ -879,8 +877,11 @@ export async function build(
   // serialize rank dir to u8/buffer
   const rd = rddir.directory.bytes;
 
+  const ftnew = compat.unlegacy(blocklistConfig);
+  const ftold = compat.legacy(blocklistConfig);
   // serialize filetag json
-  const ftstr = JSON.stringify(blocklistConfig);
+  const ftstr = JSON.stringify(ftnew);
+  const ftstr2 = JSON.stringify(ftold);
 
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir);
@@ -898,6 +899,8 @@ export async function build(
 
   log.i("saving trie/rank/filetag/basicconfig", basicconfig);
 
+  const wg = [];
+
   const aw1 = fs.writeFile(outDir + "td.txt", td, function (err) {
     if (err) {
       log.e(err);
@@ -905,6 +908,7 @@ export async function build(
     }
     log.i("trie saved as td.txt");
   });
+  wg.push(aw1);
 
   const aw2 = fs.writeFile(outDir + "rd.txt", rd, function (err) {
     if (err) {
@@ -913,6 +917,7 @@ export async function build(
     }
     log.i("rank saved as rd.txt");
   });
+  wg.push(aw2);
 
   const aw3 = fs.writeFile(outDir + "filetag.json", ftstr, function (err) {
     if (err) {
@@ -921,6 +926,17 @@ export async function build(
     }
     log.i("filetag.json saved");
   });
+  wg.push(aw3);
+
+  const outlegacy = outDir + "filetag-legacy.json";
+  const aw3legacy = fs.writeFile(outlegacy, ftstr2, function (err) {
+    if (err) {
+      log.e(err);
+      throw err;
+    }
+    log.i("filetag-legacy.json saved");
+  });
+  wg.push(aw3legacy);
 
   const aw4 = fs.writeFile(
     outDir + "basicconfig.json",
@@ -933,8 +949,9 @@ export async function build(
       log.i("basicconfig.json saved");
     }
   );
+  wg.push(aw4);
 
-  await Promise.all([aw1, aw2, aw3, aw4]);
+  await Promise.all(wg);
 
   log.sys();
   log.i("Lookup a few domains in this new trie");
