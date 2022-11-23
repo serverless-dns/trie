@@ -783,36 +783,33 @@ function lex(a, b) {
 
 async function processBlocklist(trie, bfile) {
   const patharr = bfile.split("/");
+  const hosts = [];
+  let discards = 0;
+
   // fname is an int always same as blocklistConfig's entry.value
   const fname = patharr[patharr.length - 1].split(".")[0];
   const f = fs.readFileSync(bfile, "utf8");
-  // fname always corresponds to an immutable id for a given blocklist
-  // fname should always equal conf[x].value
-  // reverse the value since it is prepended to the front of key
-  const d = codec.delim + fname;
-  const tag = d.split("").reverse().join("");
-  if (trie.config.debug) {
-    log.d(fname + "; adding: " + bfile, fname + " <-file | tag-> " + tag);
-  }
-  return extractJob(trie, f, fname, tag);
-}
-
-async function extractJob(trie, f, fname, rtag) {
-  let lines = 0;
-  let discards = 0;
-  const hosts = [];
 
   if (f.length <= 0) {
     log.i("empty file", bfile);
-    return [hosts, fname, lines, discards];
+    return [hosts, fname, discards];
+  }
+
+  // fname always corresponds to an immutable id for a given blocklist
+  // fname should always equal conf[uid].value
+  // reverse the value since it is prepended to the front of key
+  const tag = codec.delim + fname;
+  // if the tag is #173, rtag is 371# where # is a predefined delimiter
+  const rtag = tag.split("").reverse().join("");
+
+  if (trie.config.debug) {
+    log.d(fname + "; adding: " + bfile, fname + " <-file | tag-> " + rtag);
   }
 
   const visited = new Set();
   for (const h of f.split("\n")) {
     const trimmed = h.trim();
     if (trimmed.length === 0) continue;
-
-    lines += 1;
 
     // www.example.com -> [www, example, com]
     const subs = trimmed.split(".");
@@ -827,8 +824,6 @@ async function extractJob(trie, f, fname, rtag) {
     }
     if (!skip) {
       visited.add(trimmed);
-      // if the tag is 173, rtag is 371#
-      // where # is a predefined delimiter
       const ht = rtag + trimmed;
       // transformer encodes (u8/u6) + reverses ht
       hosts.push(trie.transform(ht));
@@ -836,7 +831,7 @@ async function extractJob(trie, f, fname, rtag) {
       discards += 1;
     }
   }
-  return [hosts, fname, lines, discards];
+  return [hosts, fname, discards];
 }
 
 export async function build(
@@ -869,16 +864,19 @@ export async function build(
     const unames = compat.legacyNames(blocklistConfig);
 
     for (const r of results) {
-      const [dom, f, lines, discards] = r;
+      const [dom, f, discards] = r;
 
       if (!dom || dom.length <= 0) continue;
-      log.i("id: " + f, "a: " + dom.length, "h: " + hosts.length);
+      log.i("id: " + f, "a: " + dom.length, "dis: " + discards);
 
-      hosts.push(...dom);
+      for (const x of dom) {
+        hosts.push(x);
+      }
 
       // uid is the legacy immutable id (3 letter char)
       // for a given blocklist file name, f
       const uid = unames[f];
+      const lines = dom.length + discards;
 
       totallines += lines;
       totaldiscards += discards;
