@@ -78,6 +78,8 @@ Trie.prototype = {
     this.config = cfg;
 
     this.proto = new codec.Codec(codecType);
+    // treat all blocklists as wildcards, ignoring subdomains
+    this.wildcardsOnly = cfg.useCodec6;
     // utf8 encoded delim for non-base32/64
     this.encodedDelim = this.proto.delimEncoded();
   },
@@ -822,25 +824,32 @@ async function processBlocklist(trie, bfile) {
 
   all.sort(lex);
 
-  for (const dom of all) {
-    // www.example.com -> [com, example, www]
-    const subs = dom.split(".").reverse();
-    let cur = null;
-    let skip = false;
-    for (const s of subs) {
-      if (skip) break;
-      // www . google . com
-      cur = cur == null ? s : cur + "." + s;
-      // if we've seen this subdomain before, skip it
-      skip = visited.has(cur);
+  if (trie.wildcardsOnly) {
+    for (const dom of all) {
+      // www.example.com -> [com, example, www]
+      const subs = dom.split(".").reverse();
+      let cur = null;
+      let skip = false;
+      for (const s of subs) {
+        if (skip) break;
+        // www . google . com
+        cur = cur == null ? s : cur + "." + s;
+        // if we've seen this subdomain before, skip it
+        skip = visited.has(cur);
+      }
+      if (!skip) {
+        visited.add(cur);
+        const ht = rtag + dom;
+        // transformer encodes (u8/u6) + reverses ht
+        hosts.push(trie.transform(ht));
+      } else {
+        discards += 1;
+      }
     }
-    if (!skip) {
-      visited.add(cur);
+  } else {
+    for (const dom of all) {
       const ht = rtag + dom;
-      // transformer encodes (u8/u6) + reverses ht
       hosts.push(trie.transform(ht));
-    } else {
-      discards += 1;
     }
   }
   return [hosts, fname, discards];
