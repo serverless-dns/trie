@@ -468,6 +468,7 @@ Trie.prototype = {
 
   levelorder: function () {
     const loginspect = true;
+    const verbose = false;
     const level = [this.root];
     let p = 0;
     let q = 0;
@@ -578,7 +579,7 @@ Trie.prototype = {
       node.scale(this);
     }
     if (loginspect) log.d("inspect level-order", inspect);
-    if (loginspect) log.d("inspect flags dist", flstat);
+    if (loginspect && verbose) log.d("inspect flags dist", flstat);
     return { level: level, div: ord };
   },
 
@@ -807,12 +808,17 @@ async function processBlocklist(trie, bfile) {
   }
 
   const visited = new Set();
+  const all = [];
   for (const h of f.split("\n")) {
     const trimmed = h.trim();
-    if (trimmed.length === 0) continue;
+    if (trimmed.length !== 0) all.push(trimmed);
+  }
 
-    // www.example.com -> [www, example, com]
-    const subs = trimmed.split(".");
+  all.sort(lex);
+
+  for (const dom of all) {
+    // www.example.com -> [com, example, www]
+    const subs = dom.split(".").reverse();
     let cur = null;
     let skip = false;
     for (const s of subs) {
@@ -823,8 +829,8 @@ async function processBlocklist(trie, bfile) {
       skip = visited.has(cur);
     }
     if (!skip) {
-      visited.add(trimmed);
-      const ht = rtag + trimmed;
+      visited.add(cur);
+      const ht = rtag + dom;
       // transformer encodes (u8/u6) + reverses ht
       hosts.push(trie.transform(ht));
     } else {
