@@ -811,7 +811,13 @@ async function processBlocklist(trie, bfile) {
   const all = [];
   for (const h of f.split("\n")) {
     const trimmed = h.trim();
-    if (trimmed.length !== 0) all.push(trimmed);
+    if (trimmed.length === 0) continue;
+    // TODO: move to allowlist
+    if (trimmed.indexOf("rethinkdns.com") >= 0) continue;
+    if (trimmed.indexOf("bravedns.com") >= 0) continue;
+    if (trimmed.indexOf("celzero.com") >= 0) continue;
+    if (trimmed.indexOf("rethinkfirewall.com") >= 0) continue;
+    all.push(trimmed);
   }
 
   all.sort(lex);
