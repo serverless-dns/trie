@@ -19,7 +19,7 @@ legacysubg.set("Piracy", "piracy");
 legacysubg.set("Porn", "porn");
 legacysubg.set("Services", "services");
 legacysubg.set("Cryptojacking", "cryptojacking");
-legacysubg.set("ThreatIntelligence", "thread-intelligence-feeds");
+legacysubg.set("ThreatIntelligence", "threat-intelligence-feeds");
 legacysubg.set("TrackingDomains", "tracking-domains");
 legacysubg.set("Native", "native");
 
@@ -29,7 +29,7 @@ legacysubg.set("dating", "dating");
 legacysubg.set("gambling", "gambling");
 legacysubg.set("adult", "porn");
 legacysubg.set("socialmedia", "social-networks");
-legacysubg.set("crypto", "crypojacking");
+legacysubg.set("crypto", "cryptojacking");
 legacysubg.set("malware", "threat-intelligence-feeds");
 legacysubg.set("scams & phishing", "threat-intelligence-feeds");
 legacysubg.set("spam", "threat-intelligence-feeds");
@@ -93,7 +93,8 @@ function isStr(s) {
 }
 
 export function unlegacy(ft) {
-  const tags = Object.assign({}, ft);
+  // ref: archive.is/LtlBB; shallow copy: const tags = Object.assign({}, ft);
+  const tags = JSON.parse(JSON.stringify(ft));
   // id may be a string or string(number), ex: "MTF" or "101"
   for (let [id, entry] of Object.entries(tags)) {
     // may be a str or a list, but normalize it to a list
@@ -109,6 +110,7 @@ export function unlegacy(ft) {
       // and remove property against key id
       delete tags[id];
       id = entry.value;
+      entry.uname = "" + entry.value;
     }
     const o = { [id]: entry };
     Object.assign(tags, o);
@@ -118,7 +120,7 @@ export function unlegacy(ft) {
 
 export function legacy(ft) {
   // initLegacy();
-  const tags = Object.assign({}, ft);
+  const tags = JSON.parse(JSON.stringify(ft));
   for (const [id, entry] of Object.entries(tags)) {
     // may be a str or a list, but normalize it to a str
     if (!isStr(entry.url)) {
