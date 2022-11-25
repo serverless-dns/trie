@@ -981,6 +981,7 @@ export async function build(
   basicconfig.tdmd5 = md5(td);
   basicconfig.rdmd5 = md5(rd);
   basicconfig.ftmd5 = md5(ftstr);
+  basicconfig.ftlmd5 = md5(ftstr2);
 
   log.i("saving trie/rank/filetag/basicconfig", basicconfig);
 
