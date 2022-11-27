@@ -772,6 +772,11 @@ Trie.prototype = {
   },
 };
 
+function lensort(a, b) {
+  // ascending order, shorter length first
+  return a.length - b.length;
+}
+
 function lex(a, b) {
   const n = Math.min(a.length, b.length);
   const lenDiff = a.length - b.length;
@@ -822,7 +827,8 @@ async function processBlocklist(trie, bfile) {
     all.push(trimmed);
   }
 
-  all.sort(lex);
+  // sory by length so that longer subdomains come after shorter ones
+  all.sort(lensort);
 
   if (trie.wildcardsOnly) {
     for (const dom of all) {
@@ -1052,6 +1058,12 @@ export async function build(
     "putlocker.fyi",
     "segment.io",
     "hearst.gscontxt.net",
+    "www.voodoo-analytics.io",
+    "nakanohito.jp",
+    "cm-widget.nakanohito.jp",
+    "i.clickagy.com",
+    "doesnot.exist.clickagy.com",
+    "clickagy.com",
     "xnxx.com",
     "google.ae",
     "celzero.com",
