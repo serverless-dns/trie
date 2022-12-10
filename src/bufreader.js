@@ -149,10 +149,20 @@ BitString.prototype = {
    */
   pos0: function (i, n) {
     if (n < 0) return 0;
+    if (n === 0) return i;
     let step = 16;
     let index = i;
+    // do not expect more than maxiter to answer pos0
+    const maxiter = this.length / 10;
+    let iter = 0;
 
     while (n > 0) {
+      if (i > this.length) {
+        throw new Error("pos0: out of bounds: " + i + " len: " + this.length);
+      }
+      if (iter > maxiter) {
+        throw new Error("pos0: out of iter: " + iter + " i: " + i);
+      }
       const d = this.get(i, step);
       const bits0 = step - countSetBits(d);
       if (debug) {
@@ -165,6 +175,7 @@ BitString.prototype = {
       }
       n -= bits0;
       i += step;
+      iter += step;
       const diff = n === 0 ? bit0(d, 1, step) : 1;
       index = i - diff; // 1;
     }
