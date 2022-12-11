@@ -622,7 +622,15 @@ Trie.prototype = {
     // write the entry 0b10 (1 child) for root node
     bits.write(0x02, 2);
 
-    this.stats = { children: 0, flags: 0, single: new Array(256).fill(0) };
+    this.stats = {
+      children: 0,
+      maxchild: 0,
+      size: 0,
+      maxsz: 0,
+      compressed: 0,
+      flags: 0,
+      single: new Array(256).fill(0)
+    };
     let start = Date.now();
 
     log.i("levelorder begin:", start);
@@ -643,7 +651,6 @@ Trie.prototype = {
     }
 
     const level = levelorder.level;
-    let nbb = 0;
 
     log.i(
       "levlen",
@@ -666,14 +673,18 @@ Trie.prototype = {
       level[i] = null;
       const childrenLength = node.len > 0 ? node.len | 0 : 0;
       const size = node.size > 0 ? node.size | 0 : 0;
-      nbb += size;
+      this.stats.size += size;
+      this.stats.single[childrenLength] += 1;
+      this.stats.maxsz = (size > this.stats.maxsz) ? size : this.stats.maxsz;
+      this.stats.maxchild = (childrenLength > this.stats.maxchild)
+        ? childrenLength
+        : this.stats.maxchild;
 
       if (i % l10 === 0) {
         log.i("at encode[i]: " + i);
         // seems to show memory increases of 250M+
         log.sys();
       }
-      this.stats.single[childrenLength] += 1;
 
       // set j lsb bits in int bw
       // each set bit marks one child
@@ -696,6 +707,7 @@ Trie.prototype = {
       }
       if (node.compressed) {
         value |= compressedMask;
+        this.stats.compressed += 1;
       }
       if (node.flag === true) {
         value |= flagMask;
@@ -751,22 +763,12 @@ Trie.prototype = {
     }
 
     const elapsed = Date.now() - start;
-    log.i(
-      "size:",
-      nbb,
-      ", flags:",
-      this.stats.flags,
-      ", len:",
-      this.stats.children,
-      "\nelapsed.write.keys:",
-      elapsed2,
-      ", elapsed.write.values:",
-      elapsed,
-      "\nchildren:",
-      this.stats.single,
-      "\ncodec memoized:",
-      this.proto.stats()
-    );
+    log.i("size:", this.stats.size, "maxsize:", this.stats.maxsize);
+    log.i("flags:", this.stats.flags, "compr:", this.stats.compressed);
+    log.i("children:", this.stats.children, "maxchildren:", this.stats.maxchild);
+    log.i("children dist:", this.stats.single);
+    log.i("elapsed.write.keys:", elapsed2, "elapsed.write.values:", elapsed);
+    log.i("codec memoized:", this.proto.stats());
 
     return bits.getData();
   },
