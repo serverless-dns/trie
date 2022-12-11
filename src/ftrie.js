@@ -93,6 +93,12 @@ function FrozenTrieNode(trie, index) {
   this.letter = () => this.where();
 
   this.radix = (parent, cachecursor = null) => {
+    // some impossibly high number such that, it is unlikely to
+    // be anywhere close to the length of the largest radix.
+    // 1 << 12 => 4K letters; 4K / 64 => 64 subdomains in a radix.
+    // (max no of letters per subdomain => 63 + 1 period ".")
+    const maxwordlen = 1 << 12;
+
     if (typeof wordCached !== "undefined") return [wordCached, cursorCached];
 
     // location of this child among all other children of its parent
@@ -124,14 +130,18 @@ function FrozenTrieNode(trie, index) {
       startchild.push(this);
       start += 1;
 
-      // startchild len > word len terminate
-      // fixme: startchild first letter != w first letter terminate
       do {
         const temp = parent.getChild(loc - start);
         if (!temp.compressed()) break;
         if (temp.flag()) break;
+
         startchild.push(temp);
         start += 1;
+
+        // len(startchild) > maxwordlength ? terminate
+        // no need to search beyond the impossibly high max word length;
+        // also: at this point, wordCached is usually 'null' value.
+        if (start + end > maxwordlen) return [wordCached, cursorCached];
       } while (true);
 
       // if the child itself the last-node in the sequence, nothing
@@ -141,11 +151,21 @@ function FrozenTrieNode(trie, index) {
           end += 1;
           const temp = parent.getChild(loc + end);
           endchild.push(temp);
-          if (!temp.compressed()) break;
+
           // would not encounter a flag-node whilst probing higher indices
           // as flag-nodes are rooted at 0..upto first letter-node
+          // if we're on the final-node, then compressed flag wouldn't be set,
+          // but a final node, if present, is part of the (compressed) radix.
+          // if we're not on the final-node and compressed flag isn't set,
+          // then we've reached the end of the (compressed) radix.
+          if (!temp.compressed()) break;
+
+          // len(startchild) + len(endchild) > maxwordlength ? terminate
+          // also: at this point, wordCached is usually 'null' value.
+          if (start + end > maxwordlen) return [wordCached, cursorCached];
         } while (true);
       }
+
       const nodes = startchild.reverse().concat(endchild);
       const w = nodes.map((n) => n.letter());
       // start index of this compressed node in the overall trie
@@ -176,21 +196,11 @@ function FrozenTrieNode(trie, index) {
   };
 
   this.str = () => {
-    return (
-      this.index +
-      " :i, fc: " +
-      this.firstChild() +
-      " tl: " +
-      this.letter() +
-      " c: " +
-      this.compressed() +
-      " f: " +
-      this.final() +
-      " wh: " +
-      this.where() +
-      " flag: " +
-      this.flag()
-    );
+    let s = this.index + " :i, fc: " + this.firstChild();
+    s += " tl: " + this.letter() + " c: " + this.compressed();
+    s += " f: " + this.final() + " wh: " + this.where();
+    s += " flag: " + this.flag();
+    return s;
   };
 
   this.firstChild = () => {
@@ -430,6 +440,9 @@ FrozenTrie.prototype = {
         const probe = ((high + low) / 2) | 0;
         const child = node.getChild(probe);
         const [r, cc] = child.radix(node, cachecursor);
+        if (r == null || r.word == null) {
+          throw new Error("lookup: no such radix; i: " + i + " word: " + word);
+        }
         const comp = r.word;
         const w = word.slice(i, i + comp.length);
 
