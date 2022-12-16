@@ -763,7 +763,7 @@ Trie.prototype = {
     }
 
     const elapsed = Date.now() - start;
-    log.i("size:", this.stats.size, "maxsize:", this.stats.maxsize);
+    log.i("size:", this.stats.size, "maxsize:", this.stats.maxsz);
     log.i("flags:", this.stats.flags, "compr:", this.stats.compressed);
     log.i("children:", this.stats.children, "maxchildren:", this.stats.maxchild);
     log.i("children dist:", this.stats.single);
