@@ -629,7 +629,7 @@ Trie.prototype = {
       maxsz: 0,
       compressed: 0,
       flags: 0,
-      single: new Array(256).fill(0)
+      single: new Array(256).fill(0),
     };
     let start = Date.now();
 
@@ -675,10 +675,11 @@ Trie.prototype = {
       const size = node.size > 0 ? node.size | 0 : 0;
       this.stats.size += size;
       this.stats.single[childrenLength] += 1;
-      this.stats.maxsz = (size > this.stats.maxsz) ? size : this.stats.maxsz;
-      this.stats.maxchild = (childrenLength > this.stats.maxchild)
-        ? childrenLength
-        : this.stats.maxchild;
+      this.stats.maxsz = size > this.stats.maxsz ? size : this.stats.maxsz;
+      this.stats.maxchild =
+        childrenLength > this.stats.maxchild
+          ? childrenLength
+          : this.stats.maxchild;
 
       if (i % l10 === 0) {
         log.i("at encode[i]: " + i);
@@ -765,7 +766,12 @@ Trie.prototype = {
     const elapsed = Date.now() - start;
     log.i("size:", this.stats.size, "maxsize:", this.stats.maxsz);
     log.i("flags:", this.stats.flags, "compr:", this.stats.compressed);
-    log.i("children:", this.stats.children, "maxchildren:", this.stats.maxchild);
+    log.i(
+      "children:",
+      this.stats.children,
+      "maxchildren:",
+      this.stats.maxchild
+    );
     log.i("children dist:", this.stats.single);
     log.i("elapsed.write.keys:", elapsed2, "elapsed.write.values:", elapsed);
     log.i("codec memoized:", this.proto.stats());
@@ -980,10 +986,13 @@ export async function build(
     fs.mkdirSync(outDir);
   }
 
+  // may be 0, in which case there are no splits / parts
+  const partsmb = basicconfig.tdpartsmaxmb;
   // split td (which is u16) into multiple files
-  const tdparts = await splitAndSaveTd(td.buffer, outDir);
+  const tdparts = await splitAndSaveTd(td.buffer, outDir, partsmb);
 
   // tdparts is 0-indexed; ie, tdparts([0,1,2]) = 2 when len([0,1,2]) = 3
+  // it may be -1 when there are no splits / parts
   basicconfig.tdparts = tdparts.length - 1;
   // register digests for td, rd, filetag
   basicconfig.tdmd5 = md5(td);
@@ -1091,6 +1100,9 @@ function md5(buf) {
 
 // ab is array-buffer (not node:Buffer)
 function splitAndSaveTd(ab, dirent, mib = 30) {
+  if (mib <= 0) {
+    return [];
+  }
   // n is zero-indexed, ie mib = 30 and...
   // if len = 29, then 29 / 30 => 0 => [00] => 1 split
   // if len = 31, then 31 / 30 => 1 => [00, 01] => 2 splits
