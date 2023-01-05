@@ -30,6 +30,8 @@ const config = {
   useCodec6: true,
   // optimize storing flags, that is, store less than 3 flags as-is
   optflags: true,
+  // size in mb to split the trie (into multiple files)
+  tdpartsmaxmb: 0,
 };
 
 export function withDefaults(cfg) {
