@@ -79,7 +79,7 @@ Trie.prototype = {
 
     this.proto = new codec.Codec(codecType);
     // treat all blocklists as wildcards, ignoring subdomains
-    this.wildcardsOnly = cfg.useCodec6;
+    this.wildcardsOnly = true;
     // utf8 encoded delim for non-base32/64
     this.encodedDelim = this.proto.delimEncoded();
   },
