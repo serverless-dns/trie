@@ -27,7 +27,7 @@ function FrozenTrieNode(trie, index) {
   let valCached;
   let flagCached;
   let wordCached;
-  let cursorCached;
+  let ccursorCached;
 
   this.trie = trie;
   this.index = index;
@@ -94,12 +94,14 @@ function FrozenTrieNode(trie, index) {
 
   this.radix = (parent, cachecursor = null) => {
     // some impossibly high number such that, it is unlikely to
-    // be anywhere close to the length of the largest radix.
+    // be anywhere close to the length of a probable domain name.
     // 1 << 12 => 4K letters; 4K / 64 => 64 subdomains in a radix.
     // (max no of letters per subdomain => 63 + 1 period ".")
+    // ftrie node maxsize is 1215 bytes (18 Jan 23) archive.is/MC0dq
+    // a single ftrie node may contain parts of or full domain name
     const maxwordlen = 1 << 12;
 
-    if (typeof wordCached !== "undefined") return [wordCached, cursorCached];
+    if (typeof wordCached !== "undefined") return [wordCached, ccursorCached];
 
     // location of this child among all other children of its parent
     const loc = this.index - parent.firstChild();
@@ -115,9 +117,9 @@ function FrozenTrieNode(trie, index) {
       }
       if (cc != null && cc.value != null) {
         wordCached = cc.value;
-        cursorCached = cc.cursor;
+        ccursorCached = cc.cursor;
         if (this.debug) console.log("\t\t\tnode-c-hit", this.index);
-        return [wordCached, cursorCached];
+        return [wordCached, ccursorCached];
       }
 
       if (this.debug) console.log("\t\t\tnode-c-miss, add:", this.index);
@@ -141,7 +143,7 @@ function FrozenTrieNode(trie, index) {
         // len(startchild) > maxwordlength ? terminate
         // no need to search beyond the impossibly high max word length;
         // also: at this point, wordCached is usually 'null' value.
-        if (start + end > maxwordlen) return [wordCached, cursorCached];
+        if (start + end > maxwordlen) return [wordCached, ccursorCached];
       } while (true);
 
       // if the child itself the last-node in the sequence, nothing
@@ -162,7 +164,7 @@ function FrozenTrieNode(trie, index) {
 
           // len(startchild) + len(endchild) > maxwordlength ? terminate
           // also: at this point, wordCached is usually 'null' value.
-          if (start + end > maxwordlen) return [wordCached, cursorCached];
+          if (start + end > maxwordlen) return [wordCached, ccursorCached];
         } while (true);
       }
 
@@ -192,7 +194,7 @@ function FrozenTrieNode(trie, index) {
       };
     }
 
-    return [wordCached, cursorCached || null];
+    return [wordCached, ccursorCached || null];
   };
 
   this.str = () => {
