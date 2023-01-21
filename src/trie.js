@@ -12,7 +12,7 @@ import * as fs from "fs";
 import { createHash } from "crypto";
 import { createRankDirectory } from "./rank.js";
 import { FrozenTrie } from "./ftrie.js";
-import { BitString, MaskBottom } from "./bufreader.js";
+import { encodew, MaskBottom } from "./bufreader.js";
 import { BitWriter } from "./bufwriter.js";
 import { countSetBits } from "./bitsutil.js";
 import { dec16, chr16 } from "./b64.js";
@@ -505,10 +505,7 @@ Trie.prototype = {
       if (flagNode) {
         start = 1;
         // fixme: abort if flag-node has no value stored?
-        if (
-          typeof flagNode.letter === "undefined" ||
-          typeof flagNode === "undefined"
-        ) {
+        if (typeof flagNode.letter === "undefined") {
           log.w("flagnode letter undef", flagNode, "node", node);
         }
 
@@ -523,7 +520,8 @@ Trie.prototype = {
           if (this.config.useCodec6) {
             encValue = this.proto.encode16(letter);
           } else {
-            encValue = new BitString(letter).encode(this.proto.typ);
+            // TODO: move encodew to this.proto.encode16Raw?
+            encValue = encodew(letter, this.proto.typ);
           }
         }
 

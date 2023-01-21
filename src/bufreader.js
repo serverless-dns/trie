@@ -35,6 +35,18 @@ export const MaskBottom = {
   ],
 };
 
+const ecache = new Map();
+export function encodew(str, n) {
+  const key = str + ":" + n;
+  if (!ecache.has(key)) {
+    const bs = new BitString(str);
+    const out = bs.encode(n);
+    ecache.set(key, out);
+    return out;
+  }
+  return ecache.get(key);
+}
+
 BitString.prototype = {
   init: function (str) {
     this.bytes = str;
