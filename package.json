@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/serverless-dns/trie#readme",
   "dependencies": {
-    "@serverless-dns/lfu-cache": "github:serverless-dns/lfu-cache#v3.4.1"
+    "@serverless-dns/lfu-cache": "github:serverless-dns/lfu-cache#v3.5.1"
   },
   "devDependencies": {
     "@types/node": "^16.11.7",
